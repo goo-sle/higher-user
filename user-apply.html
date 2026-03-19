@@ -120,7 +120,7 @@
     .preview-table tbody td { padding:9px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
     .preview-table tbody tr:last-child td { border-bottom:none; }
     .preview-table tbody tr:hover { background:#f8fafc; }
-    .row-status { font-size:10px; font-weight:700; padding:2px 7px; border-radius:8px; }
+    .row-status { font-size:10px; font-weight:700; padding:2px 7px; border-radius:8px; white-space:nowrap; display:inline-block; }
     .row-ok  { background:rgba(16,185,129,.1); color:#059669; }
     .row-err { background:rgba(239,68,68,.1);  color:var(--danger); }
 
@@ -379,7 +379,7 @@
                 <th style="width:60px">일 수</th>
                 <th style="width:80px">일 목표</th>
                 <th style="width:90px">시작일</th>
-                <th style="width:60px">상태</th>
+                <th style="width:100px">상태</th>
               </tr>
             </thead>
             <tbody id="preview-body"></tbody>
