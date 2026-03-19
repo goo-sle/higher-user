@@ -152,7 +152,7 @@ const HA = {
 
     // ── 텔레그램 알림 발송 ──────────────────────────────────
     const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
-    await sendTelegram(
+  await sendTelegram(
 `📥 <b>새 슬롯 접수</b>
 ━━━━━━━━━━━━━━━━
 🏷 슬롯타입: ${newSlot.slotType}
@@ -162,8 +162,8 @@ const HA = {
 📅 기간: ${newSlot.startDate} ~ ${newSlot.endDate}
 ⏰ 접수시간: ${now}
 ━━━━━━━━━━━━━━━━
-👉 어드민에서 확인하세요`
-    );
+👉 <a href="https://higherad.kro.kr/index.html">어드민에서 확인하세요</a>`
+  );
 
     return result;
   },
