@@ -363,13 +363,17 @@
 
   // ── 홈 렌더 ─────────────────────────────────────────────────
   async function renderHome() {
-    const mySlots = getMySlots();
+    const [allSlots, allNotices] = await Promise.all([
+      HA.getSlots(),
+      HA.getNotices(),
+    ]);
+
+    const mySlots = allSlots.filter(s => s.userId === user.username);
     const active  = mySlots.filter(s => s.status === 'active');
     const pending = mySlots.filter(s => s.status === 'pending');
     const today   = new Date(); today.setHours(0,0,0,0);
     const in3     = new Date(today); in3.setDate(today.getDate()+3);
     const expiring= active.filter(s => { const d=new Date(s.endDate); return d<=in3 && d>=today; });
-    const inflow  = active.reduce((a,s) => a+(s.inflow||0), 0);
 
     document.getElementById('home-stats').innerHTML = `
       <div class="stat-card c-green">
@@ -379,8 +383,8 @@
       </div>
       <div class="stat-card c-info">
         <div class="stat-icon info"><i data-lucide="trending-up" size="18"></i></div>
-        <div class="stat-label">총 유입수</div>
-        <div class="stat-value">${inflow.toLocaleString()}<span class="stat-unit">건</span></div>
+        <div class="stat-label">총 슬롯 수</div>
+        <div class="stat-value">${mySlots.length}<span class="stat-unit">개</span></div>
       </div>
       <div class="stat-card c-warn">
         <div class="stat-icon warn"><i data-lucide="clock-alert" size="18"></i></div>
@@ -393,7 +397,6 @@
         <div class="stat-value">${pending.length}<span class="stat-unit">건</span></div>
       </div>`;
 
-    // 최근 슬롯 5개
     const recent = mySlots.slice(0, 5);
     const tbl = document.getElementById('home-recent-table');
     if (!recent.length) {
@@ -420,14 +423,13 @@
       </table>`;
     }
 
-    // 공지 4개
-    const notices = HA.getNotices().slice(0,4);
-    document.getElementById('home-notices').innerHTML = notices.map(n => `
-      <div class="notice-item" onclick="openNotice(${n.id})">
+    const notices = allNotices.slice(0, 4);
+    document.getElementById('home-notices').innerHTML = notices.length ? notices.map(n => `
+      <div class="notice-item" onclick="openNotice('${n._key}')">
         ${n.pinned ? '<div class="pin-dot"></div>' : '<div class="normal-dot"></div>'}
         <span class="notice-title">${n.title}</span>
-        <span class="notice-meta">${n.date.slice(0,10)}</span>
-      </div>`).join('');
+        <span class="notice-meta">${(n.date||'').slice(0,10)}</span>
+      </div>`).join('') : '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">공지사항이 없습니다.</div>';
 
     lucide.createIcons();
   }
@@ -482,19 +484,20 @@
 
   // ── 공지사항 렌더 ────────────────────────────────────────────
   window.renderAllNotices = async function() {
-    const notices = HA.getNotices();
-    document.getElementById('all-notices').innerHTML = notices.map(n => `
-      <div class="notice-item" onclick="openNotice(${n.id})">
+    const notices = await HA.getNotices();
+    document.getElementById('all-notices').innerHTML = notices.length ? notices.map(n => `
+      <div class="notice-item" onclick="openNotice('${n._key}')">
         ${n.pinned ? '<div class="pin-dot"></div>' : '<div class="normal-dot"></div>'}
         <span class="notice-title">${n.title}</span>
-        <span class="notice-meta">${n.date.slice(0,10)} · 조회 ${n.views}</span>
-      </div>`).join('');
-  }
+        <span class="notice-meta">${(n.date||'').slice(0,10)} · 조회 ${n.views||0}</span>
+      </div>`).join('') : '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">공지사항이 없습니다.</div>';
+  };
 
-  function openNotice(id) {
-    const n = HA.getNotices().find(x=>x.id===id);
+  window.openNotice = async function(key) {
+    const notices = await HA.getNotices();
+    const n = notices.find(x => x._key === key);
     if (!n) return;
-    HA.updateNotice(id, { views: n.views+1 });
+    await HA.updateNotice(key, { views: (n.views||0)+1 });
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
@@ -507,7 +510,7 @@
         </div>
       </div>`;
     document.body.appendChild(overlay);
-  }
+  };
 
   window.doLogout = function() {
     HA.logout();
