@@ -325,7 +325,7 @@
   });
 
   // ── 탭 전환 ─────────────────────────────────────────────────
-  function switchTab(tab) {
+  window.switchTab = function(tab) {
     ['home','slots','notices'].forEach(t => {
       document.getElementById('content-'+t).classList.toggle('active', t===tab);
       document.getElementById('tab-'+t).classList.toggle('active', t===tab);
@@ -362,7 +362,7 @@
   }
 
   // ── 홈 렌더 ─────────────────────────────────────────────────
-  function renderHome() {
+  async function renderHome() {
     const mySlots = getMySlots();
     const active  = mySlots.filter(s => s.status === 'active');
     const pending = mySlots.filter(s => s.status === 'pending');
@@ -433,12 +433,13 @@
   }
 
   // ── 내 슬롯 전체 렌더 ───────────────────────────────────────
-  function renderMySlots() {
+  window.renderMySlots = async function() {
     const status = document.getElementById('f-status').value;
     const type   = document.getElementById('f-type').value;
     const kw     = (document.getElementById('f-kw').value||'').toLowerCase();
 
-    let slots = getMySlots().filter(s => {
+    const allSlots = await HA.getSlots();
+    let slots = allSlots.filter(s => s.userId === user.username).filter(s => {
       if (status && s.status !== status) return false;
       if (type   && s.slotType !== type) return false;
       if (kw && ![(s.storeName||''),(s.rankKeyword||'')].some(v=>v.toLowerCase().includes(kw))) return false;
@@ -480,7 +481,7 @@
   }
 
   // ── 공지사항 렌더 ────────────────────────────────────────────
-  function renderAllNotices() {
+  window.renderAllNotices = async function() {
     const notices = HA.getNotices();
     document.getElementById('all-notices').innerHTML = notices.map(n => `
       <div class="notice-item" onclick="openNotice(${n.id})">
@@ -508,7 +509,7 @@
     document.body.appendChild(overlay);
   }
 
-  function doLogout() {
+  window.doLogout = function() {
     HA.logout();
     location.href = 'index.html';
   }
