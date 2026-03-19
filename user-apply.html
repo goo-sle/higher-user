@@ -115,7 +115,7 @@
 
     /* 엑셀 미리보기 테이블 */
     .preview-wrap { background:#fff; border:1px solid var(--border); border-radius:12px; overflow:auto; margin-bottom:20px; max-height:320px; }
-    .preview-table { width:100%; border-collapse:collapse; font-size:12px; min-width:700px; }
+    .preview-table { width:100%; border-collapse:collapse; font-size:12px; min-width:800px; }
     .preview-table thead th { background:#1e293b; color:#fff; padding:10px 12px; font-weight:500; text-align:left; white-space:nowrap; position:sticky; top:0; }
     .preview-table tbody td { padding:9px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
     .preview-table tbody tr:last-child td { border-bottom:none; }
@@ -348,7 +348,7 @@
       <div class="template-box">
         <div class="t-text">
           <strong>엑셀 양식 컬럼 순서</strong><br>
-          업체명 / 업체URL / 업체MID번호 / 순위키워드 / 일수 / 시작일 / 일목표
+          업체명 / 업체URL / 업체MID번호 / 순위키워드 / 일 수 / 시작일 / 일 목표
         </div>
         <button class="btn-template" onclick="downloadTemplate()">양식 다운로드</button>
       </div>
@@ -376,15 +376,15 @@
           <table class="preview-table">
             <thead>
               <tr>
-                <th>#</th>
+                <th style="width:36px">#</th>
                 <th>업체명</th>
                 <th>URL</th>
-                <th>MID</th>
+                <th style="width:110px">MID</th>
                 <th>순위키워드</th>
-                <th>일수</th>
-                <th>일목표</th>
-                <th>시작일</th>
-                <th>상태</th>
+                <th style="width:60px">일 수</th>
+                <th style="width:80px">일 목표</th>
+                <th style="width:90px">시작일</th>
+                <th style="width:60px">상태</th>
               </tr>
             </thead>
             <tbody id="preview-body"></tbody>
@@ -409,7 +409,7 @@
         <div class="success-title" id="excel-done-title">일괄 접수가 완료되었습니다!</div>
         <div class="success-desc" id="excel-done-desc"></div>
         <div class="success-actions">
-          <button class="btn-ghost" onclick="resetExcel();document.getElementById('excel-done').style.display='none'" style="font-family:inherit">추가 업로드</button>
+          <button class="btn-ghost" onclick="resetExcelFull()" style="font-family:inherit">추가 업로드</button>
           <button class="btn-next" onclick="location.href='user-dashboard.html'" style="font-family:inherit">
             <i data-lucide="layout-dashboard" size="15"></i> 대시보드로 이동
           </button>
@@ -726,6 +726,17 @@
     document.getElementById('excel-file').value = '';
     document.getElementById('excel-zone').style.display = 'block';
     document.getElementById('excel-preview').style.display = 'none';
+  };
+
+  // 완료 후 추가 업로드 — form-card도 다시 보여줌
+  window.resetExcelFull = function() {
+    resetExcel();
+    document.getElementById('excel-done').style.display = 'none';
+    const card = document.querySelector('#mode-excel .form-card');
+    if (card) card.style.display = 'block';
+    const btn = document.getElementById('excel-submit-btn');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="upload" size="16"></i> 일괄 접수하기'; }
+    lucide.createIcons();
   };
 
   // ── 일괄 제출 ─────────────────────────────────────────────
