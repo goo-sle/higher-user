@@ -199,32 +199,30 @@
         <div class="form-section-title">기본 정보</div>
         <div class="form-row">
           <div class="form-field">
-            <label><span class="required-dot"></span> 스토어명</label>
-            <input id="f-storeName" type="text" placeholder="네이버 스토어팜 상호명">
-            <div class="field-error" id="err-storeName">스토어명을 입력해주세요.</div>
+            <label><span class="required-dot"></span> 업체명 <small style="color:var(--muted);font-weight:400">(네이버 상호명)</small></label>
+            <input id="f-storeName" type="text" placeholder="네이버 상호명을 입력하세요">
+            <div class="field-error" id="err-storeName">업체명을 입력해주세요.</div>
           </div>
           <div class="form-field">
-            <label><span class="required-dot"></span> 순위 키워드</label>
-            <input id="f-rankKeyword" type="text" placeholder="예: 업소용음식물처리기">
+            <label><span class="required-dot"></span> 순위 키워드 <small style="color:var(--muted);font-weight:400">(예: 홍대맛집)</small></label>
+            <input id="f-rankKeyword" type="text" placeholder="예: 홍대맛집">
             <div class="field-error" id="err-rankKeyword">순위 키워드를 입력해주세요.</div>
           </div>
         </div>
         <div class="form-field">
-          <label><span class="required-dot"></span> 스마트스토어 URL</label>
-          <input id="f-url" type="url" placeholder="https://smartstore.naver.com/...">
-          <div class="field-hint">상품 상세 페이지 URL을 입력해주세요.</div>
+          <label><span class="required-dot"></span> URL <small style="color:var(--muted);font-weight:400">(예: https://m.place.naver.com/...)</small></label>
+          <input id="f-url" type="url" placeholder="https://m.place.naver.com/...">
           <div class="field-error" id="err-url">URL을 입력해주세요.</div>
         </div>
         <div class="form-row">
           <div class="form-field">
-            <label>판매처 MID <small style="color:var(--muted);font-weight:400">(단일상품)</small></label>
+            <label><span class="required-dot"></span> MID</label>
             <input id="f-mid" type="text" placeholder="예: 12345678">
-            <div class="field-hint">MID는 스토어 URL에서 확인 가능합니다.</div>
+            <div class="field-error" id="err-mid">MID를 입력해주세요.</div>
           </div>
           <div class="form-field">
             <label>작업 키워드</label>
-            <input id="f-workKeyword" type="text" placeholder="예: 음식물처리기, 가정용">
-            <div class="field-hint">콤마(,)로 구분하여 여러 개 입력 가능합니다.</div>
+            <input id="f-workKeyword" type="text" placeholder="">
           </div>
         </div>
       </div>
@@ -257,26 +255,23 @@
           <div class="form-field">
             <label><span class="required-dot"></span> 일 수</label>
             <input id="f-days" type="number" placeholder="예: 7" min="1" oninput="autoCalcEndDate()">
-            <div class="field-hint">일 수 입력 시 종료일이 자동 계산됩니다.</div>
             <div class="field-error" id="err-days">일 수를 입력해주세요.</div>
           </div>
           <div class="form-field">
-            <label>일 목표 개수</label>
+            <label><span class="required-dot"></span> 일 목표</label>
             <input id="f-dailyTarget" type="number" placeholder="예: 1000" min="0">
-            <div class="field-hint">하루 목표 유입 수를 입력해주세요.</div>
+            <div class="field-error" id="err-dailyTarget">일 목표를 입력해주세요.</div>
           </div>
         </div>
         <div class="form-row">
           <div class="form-field">
-            <label><span class="required-dot"></span> 시작일</label>
-            <input id="f-startDate" type="date" oninput="autoCalcEndDate()">
-            <div class="field-error" id="err-startDate">시작일을 선택해주세요.</div>
+            <label>시작일</label>
+            <input id="f-startDate" type="text" readonly style="background:#f8fafc;color:var(--text2);cursor:default;">
           </div>
           <div class="form-field">
-            <label><span class="required-dot"></span> 종료일</label>
-            <input id="f-endDate" type="date">
-            <div class="field-hint">시작일과 일 수 입력 시 자동 계산됩니다.</div>
-            <div class="field-error" id="err-endDate">종료일을 선택해주세요.</div>
+            <label>종료일</label>
+            <input id="f-endDate" type="text" readonly style="background:#f8fafc;color:var(--text2);cursor:default;">
+            <div class="field-hint">일 수 입력 시 자동 계산됩니다.</div>
           </div>
         </div>
       </div>
@@ -449,12 +444,11 @@
     });
   });
 
-  // 기본 날짜 세팅
+  // 기본 날짜 세팅 (오늘 날짜 텍스트로 표시, 수정 불가)
   const today = new Date();
   const fmt = d => d.toISOString().slice(0,10);
   document.getElementById('f-startDate').value = fmt(today);
-  const end = new Date(today); end.setDate(today.getDate()+30);
-  document.getElementById('f-endDate').value = fmt(end);
+  document.getElementById('f-endDate').value = fmt(today);
 
   // ── 탭 전환 ───────────────────────────────────────────────
   window.switchMode = function(mode) {
@@ -496,14 +490,15 @@
     window.scrollTo(0,0);
   }
 
-  // ── 일 수 입력 시 종료일 자동 계산 ──────────────────────────
+  // ── 일 수 입력 시 종료일 자동 계산 (시작일 = 오늘 고정) ────
   window.autoCalcEndDate = function() {
-    const start = document.getElementById('f-startDate').value;
-    const days  = Number(document.getElementById('f-days').value);
-    if (start && days > 0) {
-      const s = new Date(start);
+    const days = Number(document.getElementById('f-days').value);
+    if (days > 0) {
+      const s = new Date();
       s.setDate(s.getDate() + days);
       document.getElementById('f-endDate').value = fmt(s);
+    } else {
+      document.getElementById('f-endDate').value = fmt(new Date());
     }
   };
 
@@ -511,12 +506,13 @@
   function validate() {
     let ok = true;
     const required = [
-      {id:'f-slotType',   err:'err-slotType'},
-      {id:'f-storeName',  err:'err-storeName'},
-      {id:'f-rankKeyword',err:'err-rankKeyword'},
-      {id:'f-url',        err:'err-url'},
-      {id:'f-startDate',  err:'err-startDate'},
-      {id:'f-endDate',    err:'err-endDate'},
+      {id:'f-slotType',    err:'err-slotType'},
+      {id:'f-storeName',   err:'err-storeName'},
+      {id:'f-rankKeyword', err:'err-rankKeyword'},
+      {id:'f-url',         err:'err-url'},
+      {id:'f-mid',         err:'err-mid'},
+      {id:'f-days',        err:'err-days'},
+      {id:'f-dailyTarget', err:'err-dailyTarget'},
     ];
     required.forEach(({id, err}) => {
       const el = document.getElementById(id);
@@ -530,14 +526,6 @@
         if (errEl) errEl.style.display = 'none';
       }
     });
-    const s = document.getElementById('f-startDate').value;
-    const e = document.getElementById('f-endDate').value;
-    if (s && e && e <= s) {
-      document.getElementById('f-endDate').classList.add('error');
-      document.getElementById('err-endDate').textContent = '종료일은 시작일보다 이후여야 합니다.';
-      document.getElementById('err-endDate').style.display = 'block';
-      ok = false;
-    }
     return ok;
   }
 
@@ -548,10 +536,10 @@
     const meta = SLOT_META[type] || {};
     const rows = [
       ['슬롯 타입',   type],
-      ['스토어명',    document.getElementById('f-storeName').value],
+      ['업체명',      document.getElementById('f-storeName').value],
       ['순위 키워드', document.getElementById('f-rankKeyword').value],
       ['URL',        document.getElementById('f-url').value],
-      ['MID',        document.getElementById('f-mid').value || '-'],
+      ['MID',        document.getElementById('f-mid').value],
       ['작업 키워드', document.getElementById('f-workKeyword').value || '-'],
       ...(meta.showCompare ? [
         ['가격비교 URL', document.getElementById('f-compareUrl').value || '-'],
@@ -560,9 +548,11 @@
       ...(meta.showSeller ? [
         ['판매처 통제', document.getElementById('f-sellerControl').value || '-'],
       ] : []),
-      ['시작일', document.getElementById('f-startDate').value],
-      ['종료일', document.getElementById('f-endDate').value],
-      ['메모',   document.getElementById('f-memo').value || '-'],
+      ['일 수',      document.getElementById('f-days').value + '일'],
+      ['일 목표',    Number(document.getElementById('f-dailyTarget').value).toLocaleString() + '개'],
+      ['시작일',     document.getElementById('f-startDate').value],
+      ['종료일',     document.getElementById('f-endDate').value],
+      ['메모',       document.getElementById('f-memo').value || '-'],
     ];
     document.getElementById('confirm-content').innerHTML = `
       <div class="confirm-section">
@@ -687,8 +677,12 @@
           endD.setDate(endD.getDate() + days);
           const endDate = fmt(endD);
 
-          const valid = !!(storeName && url && rankKeyword && startDate);
-          return { storeName, url, mid, rankKeyword, days, dailyTarget, startDate, endDate, valid, error: valid ? '' : '필수값 누락' };
+          const today_str = fmt(new Date());
+          const hasRequired = !!(storeName && url && rankKeyword && startDate);
+          const isPastDate  = startDate < today_str;
+          const valid = hasRequired && !isPastDate;
+          const error = !hasRequired ? '필수값 누락' : isPastDate ? '오늘 이전 시작일' : '';
+          return { storeName, url, mid, rankKeyword, days, dailyTarget, startDate, endDate, valid, error };
         });
 
         renderPreview();
