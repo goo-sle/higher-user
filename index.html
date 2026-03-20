@@ -204,7 +204,7 @@
         return;
       }
 
-      await HA.addUser({ username, password, agency, unitPrice: 0 });
+      await HA.addUser({ username, password, agency, agencyId: agency, unitPrice: 0 });
 
       sucEl.textContent = '회원가입이 완료되었습니다! 관리자 승인 후 로그인 가능합니다.';
       sucEl.classList.add('show');
