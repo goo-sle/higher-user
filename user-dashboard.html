@@ -234,6 +234,38 @@
     .settle-tbl-wrap table { width:100%; border-collapse:collapse; font-size:13px; min-width:800px; }
     .paid-badge   { background:rgba(16,185,129,.1); color:#059669; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
     .unpaid-badge { background:rgba(239,68,68,.1); color:var(--danger); padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
+
+    /* ── 반응형 ── */
+    @media (max-width:768px) {
+      /* 헤더 */
+      header { padding: 0 16px; height: 56px; }
+      .header-nav { gap: 2px; }
+      .nav-tab { padding: 6px 10px; font-size: 12px; }
+      .header-user span { display: none; }
+      .btn-logout span { display: none; }
+
+      /* 메인 */
+      main { padding: 16px; }
+
+      /* 웰컴 배너 */
+      .welcome-banner { padding: 20px; flex-direction: column; align-items: flex-start; gap: 14px; }
+      .btn-apply-main { width: 100%; justify-content: center; }
+
+      /* 통계 카드 — 2열 */
+      .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .stat-value { font-size: 22px; }
+
+      /* 테이블 — 가로 스크롤 */
+      .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .table-wrap table { min-width: 600px; }
+
+      /* 필터 */
+      .filter-row { flex-wrap: wrap; gap: 6px; }
+      .btn-apply-sm { margin-left: 0; }
+
+      /* 정산 요약 카드 — 1열 */
+      .settle-summary { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -389,7 +421,7 @@
       </div>
       <div class="stat-card c-info">
         <div class="stat-icon info"><i data-lucide="trending-up" size="18"></i></div>
-        <div class="stat-label">진행중 전체 목표</div>
+        <div class="stat-label">전체 목표</div>
         <div class="stat-value">${active.reduce((a,s)=>a+(s.dailyTarget||0),0).toLocaleString()}<span class="stat-unit">개</span></div>
       </div>
       <div class="stat-card c-warn">
@@ -476,7 +508,7 @@
         <td style="color:var(--text2)">${s.startDate}</td>
         <td style="color:var(--text2)">${s.endDate}</td>
         <td>${s.status==='active' ? ddayBadge(getDday(s.endDate)) : '-'}</td>
-        <td><strong>${(s.dailyTarget||0).toLocaleString()}</strong></td>
+        <td><strong>${(s.inflow||0).toLocaleString()}</strong></td>
         <td>${statusBadge[s.status]||s.status}
           ${s.status==='rejected' && s.rejectReason ? `<br><small style="color:var(--danger);font-size:10px">${s.rejectReason}</small>` : ''}
         </td>
@@ -530,12 +562,12 @@
     const unitPrice = myUser ? (myUser.unitPrice || 0) : 0;
 
     const mySlots = allSlots.filter(s =>
-      s.userId === user.username && (s.status === 'active' || s.status === 'expired' || s.status === 'pending')
+      s.userId === user.username && (s.status === 'active' || s.status === 'expired')
     );
 
     const totalDailyTarget = mySlots.reduce((a,s) => a + (s.dailyTarget||0), 0);
-    const totalAmount      = mySlots.reduce((a,s) => a + (s.dailyTarget||0) * (s.days||0) * unitPrice, 0);
-    const paidAmount       = mySlots.filter(s => paidSet.has(s._key)).reduce((a,s) => a + (s.dailyTarget||0) * (s.days||0) * unitPrice, 0);
+    const totalAmount      = mySlots.reduce((a,s) => a + (s.dailyTarget||0) * unitPrice, 0);
+    const paidAmount       = mySlots.filter(s => paidSet.has(s._key)).reduce((a,s) => a + (s.dailyTarget||0) * unitPrice, 0);
     const unpaidAmount     = totalAmount - paidAmount;
 
     settleList.innerHTML = `
@@ -572,7 +604,7 @@
             </thead>
             <tbody>
               ${mySlots.length ? mySlots.map(s => {
-                const amount = (s.dailyTarget||0) * (s.days||0) * unitPrice;
+                const amount = (s.dailyTarget||0) * unitPrice;
                 const isPaid = paidSet.has(s._key);
                 return `<tr>
                   <td style="padding:12px 14px;border-bottom:1px solid var(--border);text-align:center;font-weight:500">${s.storeName||'-'}</td>
