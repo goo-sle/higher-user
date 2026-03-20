@@ -181,19 +181,6 @@
       <div class="card-title">슬롯 신청 정보를 입력해주세요</div>
       <div class="card-desc">상품 유형을 선택하고 필요한 정보를 입력해주세요. <span style="color:var(--danger)">●</span> 표시는 필수 항목입니다.</div>
 
-      <!-- 상품 선택 (드롭다운으로 간소화) -->
-      <div class="form-section">
-        <div class="form-section-title">상품 선택</div>
-        <div class="form-field">
-          <label><span class="required-dot"></span> 슬롯 타입</label>
-          <select id="f-slotType" onchange="onTypeChange()">
-            <option value="">슬롯 타입을 선택하세요</option>
-          </select>
-          <div class="field-error" id="err-slotType">슬롯 타입을 선택해주세요.</div>
-        </div>
-        <div id="type-guide-inline" style="display:none; background:rgba(16,185,129,.05); border:1px solid rgba(16,185,129,.2); border-radius:8px; padding:12px 14px; font-size:12px; color:var(--text2); line-height:1.7; margin-top:-8px;"></div>
-      </div>
-
       <!-- 기본 정보 -->
       <div class="form-section">
         <div class="form-section-title">기본 정보</div>
@@ -348,14 +335,6 @@
         <button class="btn-template" onclick="downloadTemplate()">양식 다운로드</button>
       </div>
 
-      <!-- 슬롯 타입 선택 -->
-      <div class="form-field" style="margin-bottom:20px;">
-        <label><span class="required-dot"></span> 슬롯 타입 선택 <small style="color:var(--muted);font-weight:400">(업로드할 파일의 슬롯 타입)</small></label>
-        <select id="excel-slotType">
-          <option value="">슬롯 타입을 선택하세요</option>
-        </select>
-      </div>
-
       <!-- 업로드 영역 -->
       <div class="excel-zone" id="excel-zone" onclick="document.getElementById('excel-file').click()">
         <input type="file" id="excel-file" accept=".xlsx,.xls" onchange="handleExcelFile(this)">
@@ -422,28 +401,6 @@
   const user = HA.getCurrentUser();
   if (!user || user.role === 'admin') location.href = 'index.html';
 
-  // ── 슬롯 타입 메타 ────────────────────────────────────────
-  const SLOT_META = {
-    '리워드':    { desc:'키워드 순위 최적화 기본형',  showCompare:false, showSeller:false },
-    '텍사스':  { desc:'고강도 순위 작업 상품',       showCompare:false, showSeller:true  },
-    '유토피아':{ desc:'브랜드 키워드 집중 관리',     showCompare:false, showSeller:false },
-    '갤럭시':  { desc:'가격비교 포함 통합 관리',     showCompare:true,  showSeller:true  },
-    '메리':    { desc:'여성 패션/뷰티 특화형',       showCompare:false, showSeller:false },
-    '퍼블릭':  { desc:'일반 생활용품 표준형',        showCompare:true,  showSeller:false },
-    '리무진':  { desc:'프리미엄 고가 상품 전용',     showCompare:true,  showSeller:true  },
-    '이슬':    { desc:'식품/신선식품 전문 운영',     showCompare:false, showSeller:false },
-  };
-
-  // 슬롯 타입 옵션 채우기
-  ['f-slotType', 'excel-slotType'].forEach(id => {
-    const sel = document.getElementById(id);
-    HA.SLOT_TYPES.forEach(t => {
-      const o = document.createElement('option');
-      o.value = t; o.textContent = t;
-      sel.appendChild(o);
-    });
-  });
-
   // 기본 날짜 세팅 (오늘 날짜 텍스트로 표시, 수정 불가)
   const today = new Date();
   const fmt = d => d.toISOString().slice(0,10);
@@ -458,16 +415,7 @@
     document.getElementById('tab-excel').classList.toggle('active',  mode==='excel');
   };
 
-  // ── 슬롯 타입 변경 ────────────────────────────────────────
-  window.onTypeChange = function() {
-    const type = document.getElementById('f-slotType').value;
-    const meta = SLOT_META[type] || {};
-    const guide = document.getElementById('type-guide-inline');
-    if (type) {
-      guide.style.display = 'block';
-      guide.innerHTML = `<strong style="color:var(--accent)">${type}</strong> — ${meta.desc}
-        ${meta.showCompare ? '<br>· 가격비교 URL 및 MID 입력이 필요합니다.' : ''}
-        ${meta.showSeller  ? '<br>· 판매처 통제 여부를 확인해주세요.' : ''}`;
+  // ── 탭 전환 ───────────────────────────────────────────────
     } else {
       guide.style.display = 'none';
     }
@@ -506,7 +454,6 @@
   function validate() {
     let ok = true;
     const required = [
-      {id:'f-slotType',    err:'err-slotType'},
       {id:'f-storeName',   err:'err-storeName'},
       {id:'f-rankKeyword', err:'err-rankKeyword'},
       {id:'f-url',         err:'err-url'},
@@ -532,22 +479,12 @@
   // ── 확인 화면 ─────────────────────────────────────────────
   window.goConfirm = () => {
     if (!validate()) return;
-    const type = document.getElementById('f-slotType').value;
-    const meta = SLOT_META[type] || {};
     const rows = [
-      ['슬롯 타입',   type],
       ['업체명',      document.getElementById('f-storeName').value],
       ['순위 키워드', document.getElementById('f-rankKeyword').value],
       ['URL',        document.getElementById('f-url').value],
       ['MID',        document.getElementById('f-mid').value],
       ['작업 키워드', document.getElementById('f-workKeyword').value || '-'],
-      ...(meta.showCompare ? [
-        ['가격비교 URL', document.getElementById('f-compareUrl').value || '-'],
-        ['가격비교 MID', document.getElementById('f-compareMid').value || '-'],
-      ] : []),
-      ...(meta.showSeller ? [
-        ['판매처 통제', document.getElementById('f-sellerControl').value || '-'],
-      ] : []),
       ['일 수',      document.getElementById('f-days').value + '일'],
       ['일 목표',    Number(document.getElementById('f-dailyTarget').value).toLocaleString() + '개'],
       ['시작일',     document.getElementById('f-startDate').value],
@@ -574,20 +511,18 @@
     btn.disabled = true;
     btn.innerHTML = '처리 중...';
     try {
-      const type = document.getElementById('f-slotType').value;
-      const meta = SLOT_META[type] || {};
       await HA.addSlot({
         agencyId:      user.agency || user.username,
         userId:        user.username,
-        slotType:      type,
+        slotType:      '리워드',
         storeName:     document.getElementById('f-storeName').value,
         rankKeyword:   document.getElementById('f-rankKeyword').value,
         url:           document.getElementById('f-url').value,
         mid:           document.getElementById('f-mid').value,
         workKeyword:   document.getElementById('f-workKeyword').value,
-        compareUrl:    meta.showCompare ? document.getElementById('f-compareUrl').value : '',
-        compareMid:    meta.showCompare ? document.getElementById('f-compareMid').value : '',
-        sellerControl: meta.showSeller  ? document.getElementById('f-sellerControl').value : '',
+        compareUrl:    '',
+        compareMid:    '',
+        sellerControl: '',
         startDate:     document.getElementById('f-startDate').value,
         endDate:       document.getElementById('f-endDate').value,
         days:          Number(document.getElementById('f-days').value) || 0,
@@ -610,14 +545,12 @@
   window.resetForm = () => {
     document.getElementById('step-done').style.display = 'none';
     document.getElementById('steps-bar').style.display = 'flex';
-    document.getElementById('f-slotType').value = '';
     document.getElementById('f-storeName').value = '';
     document.getElementById('f-rankKeyword').value = '';
     document.getElementById('f-url').value = '';
     document.getElementById('f-mid').value = '';
     document.getElementById('f-workKeyword').value = '';
     document.getElementById('f-memo').value = '';
-    document.getElementById('type-guide-inline').style.display = 'none';
     setStepUI(1);
   };
 
@@ -737,9 +670,6 @@
 
   // ── 일괄 제출 ─────────────────────────────────────────────
   window.submitExcel = async () => {
-    const slotType = document.getElementById('excel-slotType').value;
-    if (!slotType) return alert('슬롯 타입을 선택해주세요.');
-
     const validRows = excelRows.filter(r => r.valid);
     if (!validRows.length) return alert('접수 가능한 데이터가 없습니다.');
 
@@ -755,7 +685,7 @@
         await HA.addSlot({
           agencyId:    user.agency || user.username,
           userId:      user.username,
-          slotType,
+          slotType:    '리워드',
           storeName:   row.storeName,
           rankKeyword: row.rankKeyword,
           url:         row.url,
