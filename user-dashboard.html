@@ -220,6 +220,20 @@
       display: flex; align-items: center; gap: 5px; margin-left: auto;
     }
     .btn-apply-sm:hover { background: var(--accent2); }
+
+    /* ── 정산 ── */
+    .settle-summary { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
+    .settle-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:20px; position:relative; overflow:hidden; }
+    .settle-card::after { content:''; position:absolute; bottom:0; left:0; right:0; height:3px; background:var(--accent); }
+    .settle-card.warn::after { background:var(--warn); }
+    .settle-card.info::after { background:var(--info); }
+    .settle-label { font-size:11px; color:var(--text2); font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; }
+    .settle-value { font-size:24px; font-weight:800; color:var(--text); line-height:1; }
+    .settle-unit  { font-size:12px; color:var(--muted); margin-left:2px; }
+    .settle-tbl-wrap { background:var(--card); border:1px solid var(--border); border-radius:12px; overflow-x:auto; }
+    .settle-tbl-wrap table { width:100%; border-collapse:collapse; font-size:13px; min-width:800px; }
+    .paid-badge   { background:rgba(16,185,129,.1); color:#059669; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
+    .unpaid-badge { background:rgba(239,68,68,.1); color:var(--danger); padding:2px 8px; border-radius:10px; font-size:11px; font-weight:700; }
   </style>
 </head>
 <body>
@@ -230,6 +244,7 @@
     <div class="nav-tab active" id="tab-home" onclick="switchTab('home')">대시보드</div>
     <div class="nav-tab" id="tab-slots" onclick="switchTab('slots')">내 슬롯</div>
     <div class="nav-tab" id="tab-notices" onclick="switchTab('notices')">공지사항</div>
+    <div class="nav-tab" id="tab-settle" onclick="switchTab('settle')">정산</div>
   </div>
   <div class="header-right">
     <div class="header-user">
@@ -287,13 +302,18 @@
       <select id="f-type" onchange="renderMySlots()">
         <option value="">슬롯타입 전체</option>
       </select>
-      <input type="text" id="f-kw" placeholder="업체명/키워드 검색">
+      <input type="text" id="f-kw" placeholder="스토어명/키워드 검색">
       <button class="btn-search" onclick="renderMySlots()">검색</button>
       <button class="btn-apply-sm" onclick="location.href='user-apply.html'">
         <i data-lucide="plus" size="13"></i> 슬롯 신청
       </button>
     </div>
     <div class="table-wrap" id="slots-table"></div>
+  </div>
+
+  <!-- ── 정산 탭 ── -->
+  <div class="tab-content" id="content-settle">
+    <div class="notice-list" id="settle-list"></div>
   </div>
 
   <!-- ── 공지사항 탭 ── -->
@@ -305,11 +325,11 @@
   </div>
 </main>
 
-<script type="module">
-  import HA from './ha-store.js';
+<script src="ha-store.js"></script>
+<script>
   // ── 인증 확인 ────────────────────────────────────────────────
   const user = HA.getCurrentUser();
-  if (!user || user.role === 'admin') location.href = 'index.html';
+  if (!user || user.role === 'admin') location.href = 'user-login.html';
 
   // ── 유저 정보 세팅 ───────────────────────────────────────────
   document.getElementById('user-name').textContent = user.username;
@@ -325,14 +345,15 @@
   });
 
   // ── 탭 전환 ─────────────────────────────────────────────────
-  window.switchTab = function(tab) {
-    ['home','slots','notices'].forEach(t => {
+  function switchTab(tab) {
+    ['home','slots','notices','settle'].forEach(t => {
       document.getElementById('content-'+t).classList.toggle('active', t===tab);
       document.getElementById('tab-'+t).classList.toggle('active', t===tab);
     });
     if (tab==='home')    renderHome();
     if (tab==='slots')   renderMySlots();
     if (tab==='notices') renderAllNotices();
+    if (tab==='settle')  renderSettle();
     window.scrollTo(0,0);
   }
 
@@ -357,10 +378,6 @@
   };
 
   // ── 내 슬롯 가져오기 ─────────────────────────────────────────
-  function getMySlots() {
-    return HA.getSlots().filter(s => s.userId === user.username);
-  }
-
   // ── 홈 렌더 ─────────────────────────────────────────────────
   async function renderHome() {
     const [allSlots, allNotices] = await Promise.all([
@@ -383,8 +400,8 @@
       </div>
       <div class="stat-card c-info">
         <div class="stat-icon info"><i data-lucide="trending-up" size="18"></i></div>
-        <div class="stat-label">총 슬롯 수</div>
-        <div class="stat-value">${mySlots.length}<span class="stat-unit">개</span></div>
+        <div class="stat-label">전체 목표</div>
+        <div class="stat-value">${active.reduce((a,s)=>a+(s.dailyTarget||0),0).toLocaleString()}<span class="stat-unit">개</span></div>
       </div>
       <div class="stat-card c-warn">
         <div class="stat-icon warn"><i data-lucide="clock-alert" size="18"></i></div>
@@ -397,6 +414,7 @@
         <div class="stat-value">${pending.length}<span class="stat-unit">건</span></div>
       </div>`;
 
+    // 최근 슬롯 5개
     const recent = mySlots.slice(0, 5);
     const tbl = document.getElementById('home-recent-table');
     if (!recent.length) {
@@ -407,29 +425,29 @@
     } else {
       tbl.innerHTML = `<table>
         <thead><tr>
-          <th>슬롯타입</th><th>업체명</th><th>순위키워드</th>
-          <th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th>
+          <th>슬롯타입</th><th>스토어명</th><th>순위키워드</th>
+          <th>기간</th><th>D-Day</th><th>순위</th><th>상태</th>
         </tr></thead>
         <tbody>${recent.map(s => `<tr>
           <td><span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;font-size:11px">${s.slotType}</span></td>
           <td style="font-weight:500">${s.storeName||'-'}</td>
           <td style="color:var(--text2)">${s.rankKeyword||'-'}</td>
-          <td style="color:var(--text2)">${s.days||'-'}</td>
-          <td style="color:var(--text2);font-size:12px">${s.startDate||'-'}</td>
-          <td style="color:var(--text2);font-size:12px">${s.endDate||'-'}</td>
-          <td style="color:var(--text2)">${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}</td>
+          <td style="color:var(--text2);font-size:12px">${s.startDate} ~ ${s.endDate}</td>
+          <td>${s.status==='active' ? ddayBadge(getDday(s.endDate)) : '-'}</td>
+          <td>${s.rank ? `<span class="rank-badge">${s.rank}위</span>` : '<span style="color:var(--muted)">-</span>'}</td>
           <td>${statusBadge[s.status]||s.status}</td>
         </tr>`).join('')}</tbody>
       </table>`;
     }
 
-    const notices = allNotices.slice(0, 4);
-    document.getElementById('home-notices').innerHTML = notices.length ? notices.map(n => `
-      <div class="notice-item" onclick="openNotice('${n._key}')">
+    // 공지 4개
+    const notices = HA.getNotices().slice(0,4);
+    document.getElementById('home-notices').innerHTML = notices.map(n => `
+      <div class="notice-item" onclick="openNotice(${n.id})">
         ${n.pinned ? '<div class="pin-dot"></div>' : '<div class="normal-dot"></div>'}
         <span class="notice-title">${n.title}</span>
-        <span class="notice-meta">${(n.date||'').slice(0,10)}</span>
-      </div>`).join('') : '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">공지사항이 없습니다.</div>';
+        <span class="notice-meta">${n.date.slice(0,10)}</span>
+      </div>`).join('');
 
     lucide.createIcons();
   }
@@ -459,8 +477,8 @@
 
     tbl.innerHTML = `<table>
       <thead><tr>
-        <th>슬롯타입</th><th>업체명</th><th>순위키워드</th><th>URL</th>
-        <th>MID</th><th>일 수</th><th>시작일</th><th>종료일</th><th>일 목표</th><th>상태</th>
+        <th>슬롯타입</th><th>스토어명</th><th>순위키워드</th><th>URL</th>
+        <th>시작일</th><th>종료일</th><th>D-Day</th><th>순위</th><th>유입수</th><th>상태</th>
       </tr></thead>
       <tbody>${slots.map(s => `<tr>
         <td><span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;font-size:11px">${s.slotType}</span></td>
@@ -469,11 +487,11 @@
         <td style="font-size:11px;color:var(--text2);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
           <a href="${s.url}" target="_blank" style="color:var(--info)">${s.url||'-'}</a>
         </td>
-        <td style="color:var(--text2)">${s.mid||'-'}</td>
-        <td style="color:var(--text2)">${s.days||'-'}</td>
-        <td style="color:var(--text2)">${s.startDate||'-'}</td>
-        <td style="color:var(--text2)">${s.endDate||'-'}</td>
-        <td style="color:var(--text2)">${s.dailyTarget ? s.dailyTarget.toLocaleString() : '-'}</td>
+        <td style="color:var(--text2)">${s.startDate}</td>
+        <td style="color:var(--text2)">${s.endDate}</td>
+        <td>${s.status==='active' ? ddayBadge(getDday(s.endDate)) : '-'}</td>
+        <td>${s.rank ? `<span class="rank-badge">${s.rank}위</span>` : '<span style="color:var(--muted)">-</span>'}</td>
+        <td><strong>${(s.inflow||0).toLocaleString()}</strong></td>
         <td>${statusBadge[s.status]||s.status}
           ${s.status==='rejected' && s.rejectReason ? `<br><small style="color:var(--danger);font-size:10px">${s.rejectReason}</small>` : ''}
         </td>
@@ -483,21 +501,20 @@
   }
 
   // ── 공지사항 렌더 ────────────────────────────────────────────
-  window.renderAllNotices = async function() {
-    const notices = await HA.getNotices();
-    document.getElementById('all-notices').innerHTML = notices.length ? notices.map(n => `
-      <div class="notice-item" onclick="openNotice('${n._key}')">
+  function renderAllNotices() {
+    const notices = HA.getNotices();
+    document.getElementById('all-notices').innerHTML = notices.map(n => `
+      <div class="notice-item" onclick="openNotice(${n.id})">
         ${n.pinned ? '<div class="pin-dot"></div>' : '<div class="normal-dot"></div>'}
         <span class="notice-title">${n.title}</span>
-        <span class="notice-meta">${(n.date||'').slice(0,10)} · 조회 ${n.views||0}</span>
-      </div>`).join('') : '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">공지사항이 없습니다.</div>';
-  };
+        <span class="notice-meta">${n.date.slice(0,10)} · 조회 ${n.views}</span>
+      </div>`).join('');
+  }
 
-  window.openNotice = async function(key) {
-    const notices = await HA.getNotices();
-    const n = notices.find(x => x._key === key);
+  function openNotice(id) {
+    const n = HA.getNotices().find(x=>x.id===id);
     if (!n) return;
-    await HA.updateNotice(key, { views: (n.views||0)+1 });
+    HA.updateNotice(id, { views: n.views+1 });
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
@@ -510,6 +527,88 @@
         </div>
       </div>`;
     document.body.appendChild(overlay);
+  }
+
+  // ── 정산 렌더 ─────────────────────────────────────────────
+  window.renderSettle = async function() {
+    const settleList = document.getElementById('settle-list');
+    if (!settleList) return;
+    settleList.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">불러오는 중...</div>';
+
+    const [allSlots, allUsers, paidSet] = await Promise.all([
+      HA.getSlots(),
+      HA.getUsers(),
+      HA.getPaidSet(),
+    ]);
+
+    const myUser    = allUsers.find(u => u.username === user.username);
+    const unitPrice = myUser ? (myUser.unitPrice || 0) : 0;
+
+    const mySlots = allSlots.filter(s =>
+      s.userId === user.username && (s.status === 'active' || s.status === 'expired')
+    );
+
+    const totalDailyTarget = mySlots.reduce((a,s) => a + (s.dailyTarget||0), 0);
+    const totalAmount      = mySlots.reduce((a,s) => a + (s.dailyTarget||0) * unitPrice, 0);
+    const paidAmount       = mySlots.filter(s => paidSet.has(s._key)).reduce((a,s) => a + (s.dailyTarget||0) * unitPrice, 0);
+    const unpaidAmount     = totalAmount - paidAmount;
+
+    settleList.innerHTML = `
+      <div style="padding:20px 20px 0">
+        <div class="settle-summary">
+          <div class="settle-card">
+            <div class="settle-label">일 목표 합계</div>
+            <div class="settle-value">${totalDailyTarget.toLocaleString()}<span class="settle-unit">개</span></div>
+            <div style="font-size:11px;color:var(--text2);margin-top:6px">단가: ${unitPrice.toLocaleString()}원/개</div>
+          </div>
+          <div class="settle-card warn">
+            <div class="settle-label">미정산 금액</div>
+            <div class="settle-value" style="color:var(--warn)">${unpaidAmount.toLocaleString()}<span class="settle-unit">원</span></div>
+          </div>
+          <div class="settle-card info">
+            <div class="settle-label">정산 완료</div>
+            <div class="settle-value" style="color:var(--accent)">${paidAmount.toLocaleString()}<span class="settle-unit">원</span></div>
+          </div>
+        </div>
+      </div>
+      <div style="padding:0 20px 20px">
+        <div class="settle-tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="background:var(--navy);color:#fff;padding:12px 14px;font-weight:500;text-align:center;white-space:nowrap">슬롯타입</th>
+                <th style="background:var(--navy);color:#fff;padding:12px 14px;font-weight:500;text-align:center;white-space:nowrap">업체명</th>
+                <th style="background:var(--navy);color:#fff;padding:12px 14px;font-weight:500;text-align:center;white-space:nowrap">시작일</th>
+                <th style="background:var(--navy);color:#fff;padding:12px 14px;font-weight:500;text-align:center;white-space:nowrap">종료일</th>
+                <th style="background:var(--navy);color:#fff;padding:12px 14px;font-weight:500;text-align:center;white-space:nowrap">일 목표</th>
+                <th style="background:var(--navy);color:#fff;padding:12px 14px;font-weight:500;text-align:center;white-space:nowrap">단가</th>
+                <th style="background:var(--navy);color:#fff;padding:12px 14px;font-weight:500;text-align:center;white-space:nowrap">정산금액</th>
+                <th style="background:var(--navy);color:#fff;padding:12px 14px;font-weight:500;text-align:center;white-space:nowrap">정산상태</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${mySlots.length ? mySlots.map(s => {
+                const amount = (s.dailyTarget||0) * unitPrice;
+                const isPaid = paidSet.has(s._key);
+                return `<tr>
+                  <td style="padding:12px 14px;border-bottom:1px solid var(--border);text-align:center">
+                    <span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;font-size:11px">${s.slotType}</span>
+                  </td>
+                  <td style="padding:12px 14px;border-bottom:1px solid var(--border);text-align:center;font-weight:500">${s.storeName||'-'}</td>
+                  <td style="padding:12px 14px;border-bottom:1px solid var(--border);text-align:center;color:var(--text2)">${s.startDate||'-'}</td>
+                  <td style="padding:12px 14px;border-bottom:1px solid var(--border);text-align:center;color:var(--text2)">${s.endDate||'-'}</td>
+                  <td style="padding:12px 14px;border-bottom:1px solid var(--border);text-align:center">${(s.dailyTarget||0).toLocaleString()}</td>
+                  <td style="padding:12px 14px;border-bottom:1px solid var(--border);text-align:center;color:var(--text2)">${unitPrice.toLocaleString()}원</td>
+                  <td style="padding:12px 14px;border-bottom:1px solid var(--border);text-align:center;font-weight:700;color:var(--accent)">${amount.toLocaleString()}원</td>
+                  <td style="padding:12px 14px;border-bottom:1px solid var(--border);text-align:center">
+                    ${isPaid ? '<span class="paid-badge">정산완료</span>' : '<span class="unpaid-badge">미정산</span>'}
+                  </td>
+                </tr>`;
+              }).join('') : `<tr><td colspan="8" style="padding:60px;text-align:center;color:var(--muted)">정산 데이터가 없습니다.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
   };
 
   window.doLogout = function() {
