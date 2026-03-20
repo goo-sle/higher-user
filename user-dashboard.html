@@ -299,9 +299,6 @@
         <option value="rejected">반려</option>
         <option value="expired">만료</option>
       </select>
-      <select id="f-type" onchange="renderMySlots()">
-        <option value="">슬롯타입 전체</option>
-      </select>
       <input type="text" id="f-kw" placeholder="스토어명/키워드 검색">
       <button class="btn-search" onclick="renderMySlots()">검색</button>
       <button class="btn-apply-sm" onclick="location.href='user-apply.html'">
@@ -335,14 +332,6 @@
   document.getElementById('user-name').textContent = user.username;
   document.getElementById('user-avatar').textContent = user.username.charAt(0).toUpperCase();
   document.getElementById('welcome-msg').textContent = `안녕하세요, ${user.username} 님 👋`;
-
-  // ── 슬롯 타입 옵션 채우기 ────────────────────────────────────
-  const typeSelect = document.getElementById('f-type');
-  HA.SLOT_TYPES.forEach(t => {
-    const o = document.createElement('option');
-    o.value = t; o.textContent = t;
-    typeSelect.appendChild(o);
-  });
 
   // ── 탭 전환 ─────────────────────────────────────────────────
   window.switchTab = function switchTab(tab) {
@@ -425,11 +414,10 @@
     } else {
       tbl.innerHTML = `<table>
         <thead><tr>
-          <th>슬롯타입</th><th>스토어명</th><th>순위키워드</th>
+          <th>스토어명</th><th>순위키워드</th>
           <th>기간</th><th>D-Day</th><th>순위</th><th>상태</th>
         </tr></thead>
         <tbody>${recent.map(s => `<tr>
-          <td><span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;font-size:11px">${s.slotType}</span></td>
           <td style="font-weight:500">${s.storeName||'-'}</td>
           <td style="color:var(--text2)">${s.rankKeyword||'-'}</td>
           <td style="color:var(--text2);font-size:12px">${s.startDate} ~ ${s.endDate}</td>
@@ -455,13 +443,11 @@
   // ── 내 슬롯 전체 렌더 ───────────────────────────────────────
   window.renderMySlots = async function() {
     const status = document.getElementById('f-status').value;
-    const type   = document.getElementById('f-type').value;
     const kw     = (document.getElementById('f-kw').value||'').toLowerCase();
 
     const allSlots = await HA.getSlots();
     let slots = allSlots.filter(s => s.userId === user.username).filter(s => {
       if (status && s.status !== status) return false;
-      if (type   && s.slotType !== type) return false;
       if (kw && ![(s.storeName||''),(s.rankKeyword||'')].some(v=>v.toLowerCase().includes(kw))) return false;
       return true;
     });
@@ -477,11 +463,10 @@
 
     tbl.innerHTML = `<table>
       <thead><tr>
-        <th>슬롯타입</th><th>스토어명</th><th>순위키워드</th><th>URL</th>
+        <th>스토어명</th><th>순위키워드</th><th>URL</th>
         <th>시작일</th><th>종료일</th><th>D-Day</th><th>순위</th><th>유입수</th><th>상태</th>
       </tr></thead>
       <tbody>${slots.map(s => `<tr>
-        <td><span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;font-size:11px">${s.slotType}</span></td>
         <td style="font-weight:500">${s.storeName||'-'}</td>
         <td style="color:var(--text2)">${s.rankKeyword||'-'}</td>
         <td style="font-size:11px;color:var(--text2);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
@@ -576,7 +561,6 @@
           <table>
             <thead>
               <tr>
-                <th style="background:var(--navy);color:#fff;padding:12px 14px;font-weight:500;text-align:center;white-space:nowrap">슬롯타입</th>
                 <th style="background:var(--navy);color:#fff;padding:12px 14px;font-weight:500;text-align:center;white-space:nowrap">업체명</th>
                 <th style="background:var(--navy);color:#fff;padding:12px 14px;font-weight:500;text-align:center;white-space:nowrap">시작일</th>
                 <th style="background:var(--navy);color:#fff;padding:12px 14px;font-weight:500;text-align:center;white-space:nowrap">종료일</th>
@@ -591,9 +575,6 @@
                 const amount = (s.dailyTarget||0) * unitPrice;
                 const isPaid = paidSet.has(s._key);
                 return `<tr>
-                  <td style="padding:12px 14px;border-bottom:1px solid var(--border);text-align:center">
-                    <span style="background:#f1f5f9;padding:2px 8px;border-radius:4px;font-size:11px">${s.slotType}</span>
-                  </td>
                   <td style="padding:12px 14px;border-bottom:1px solid var(--border);text-align:center;font-weight:500">${s.storeName||'-'}</td>
                   <td style="padding:12px 14px;border-bottom:1px solid var(--border);text-align:center;color:var(--text2)">${s.startDate||'-'}</td>
                   <td style="padding:12px 14px;border-bottom:1px solid var(--border);text-align:center;color:var(--text2)">${s.endDate||'-'}</td>
