@@ -357,7 +357,7 @@
       <div class="template-box">
         <div class="t-text">
           <strong>엑셀 양식 컬럼 순서</strong><br>
-          업체명 / 업체URL / 업체MID번호 / 순위키워드 / 일 수 / 시작일 / 일 목표
+          업체명 / URL / MID / 순위키워드 / 일 수 / 시작일 / 일 목표
         </div>
         <button class="btn-template" onclick="downloadTemplate()">양식 다운로드</button>
       </div>
@@ -383,8 +383,8 @@
                 <th style="width:110px">MID</th>
                 <th>순위키워드</th>
                 <th style="width:60px">일 수</th>
-                <th style="width:80px">일 목표</th>
                 <th style="width:90px">시작일</th>
+                <th style="width:80px">일 목표</th>
                 <th style="width:100px">상태</th>
               </tr>
             </thead>
@@ -691,8 +691,8 @@
         <td style="color:var(--text2)">${r.mid || '-'}</td>
         <td>${r.rankKeyword || '-'}</td>
         <td style="color:var(--text2)">${r.days}일</td>
-        <td style="color:var(--text2)">${r.dailyTarget ? r.dailyTarget.toLocaleString() : '-'}</td>
         <td style="color:var(--text2)">${r.startDate}</td>
+        <td style="color:var(--text2)">${r.dailyTarget ? r.dailyTarget.toLocaleString() : '-'}</td>
         <td>${r.valid
           ? '<span class="row-status row-ok">정상</span>'
           : `<span class="row-status row-err">${r.error}</span>`}</td>
@@ -769,9 +769,18 @@
   window.downloadTemplate = function() {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([
-      ['업체명', '업체URL', '업체MID번호', '순위키워드', '일수', '시작일\nxxxx-xx-xx', '일목표 개수'],
-      ['예시: 테스트 맛집', 'https://m.place.naver.com/restaurant/123', '123456789', '강남 맛집', 7, '2026-03-20', 1000],
+      ['슬롯 접수 양식'],
+      ['아래 컬럼 순서 그대로 입력 후 업로드하세요.'],
+      ['업체명', 'URL', 'MID', '순위키워드', '일 수', '시작일', '일 목표'],
+      ['예시: 테스트 맛집', 'https://m.place.naver.com/restaurant/123456789', '123456789', '강남 맛집', 7, '2026-03-20', 1000],
     ]);
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 6 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 6 } },
+    ];
+    ws['!autofilter'] = { ref: 'A3:G3' };
+    ws['!freeze'] = { xSplit: 0, ySplit: 3 };
+    ws['!rows'] = [{ hpt: 24 }, { hpt: 20 }, { hpt: 22 }, { hpt: 20 }];
     ws['!cols'] = [
       {wch:20},{wch:50},{wch:15},{wch:20},{wch:8},{wch:18},{wch:12}
     ];
