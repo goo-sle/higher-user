@@ -380,16 +380,29 @@ ${lines}
   },
 
   // 정산 실시간 리스너 — slots + paid_slots 를 함께 구독해
-  // 미정산(active 슬롯 중 paid_slots 에 없는 것) 목록을 콜백으로 전달
+  // 정산관리 페이지와 동일하게 (접수일+대행사+유저ID) 단위로 묶은 뒤
+  // 그룹 전체가 미정산인 행의 개수를 콜백으로 전달
   onSettlementsChange(callback) {
     let latestSlots = [];
     let latestPaid  = new Set();
 
     function notify() {
-      const unpaid = latestSlots.filter(
-        s => s.status === 'active' && !latestPaid.has(s._key)
+      // 정산 대상 슬롯만 추려서 그룹핑 (정산관리.html의 getFiltered/groupByDateAgency 동일 로직)
+      const base = latestSlots.filter(s =>
+        s.status === 'active' || s.status === 'expired' || s.status === 'pending'
       );
-      callback(unpaid);
+      const map = {};
+      base.forEach(s => {
+        const d = (s.createdAt || '').slice(0, 10);
+        const k = `${d}||${s.agencyId || '-'}||${s.userId || '-'}`;
+        if (!map[k]) map[k] = { slots: [] };
+        map[k].slots.push(s);
+      });
+      // 그룹 중 슬롯이 하나라도 미정산이면 미정산 행으로 카운트
+      const unpaidRows = Object.values(map).filter(g =>
+        !g.slots.every(s => latestPaid.has(s._key))
+      );
+      callback(unpaidRows.length);
     }
 
     const unsubSlots = onValue(ref(db, PATHS.slots), snap => {
@@ -404,7 +417,6 @@ ${lines}
       notify();
     });
 
-    // 두 리스너를 한 번에 해제할 수 있도록 unsubscribe 함수 반환
     return () => { unsubSlots(); unsubPaid(); };
   },
 
