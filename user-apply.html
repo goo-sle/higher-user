@@ -610,7 +610,7 @@
     btn.innerHTML = '처리 중...';
     try {
       const normalizedUrl = normalizeUrlForAdmin(document.getElementById('f-url').value);
-      await HA.addSlot({
+      const result = await HA.addSlot({
         agencyId:      user.agency || user.username,
         userId:        user.username,
         slotType:      '리워드',
@@ -628,6 +628,8 @@
         dailyTarget:   Number(document.getElementById('f-dailyTarget').value) || 0,
         memo:          document.getElementById('f-memo').value,
       });
+      // 개별접수 알림 (1건씩 즉시)
+      HA.notifySingle(result).catch(() => {});
       document.getElementById('step-2').style.display = 'none';
       document.getElementById('steps-bar').style.display = 'none';
       document.getElementById('step-done').style.display = 'block';
@@ -775,10 +777,11 @@
 
     let success = 0;
     let fail = 0;
+    const succeededSlots = [];
 
     for (const row of validRows) {
       try {
-        await HA.addSlot({
+        const result = await HA.addSlot({
           agencyId:    user.agency || user.username,
           userId:      user.username,
           slotType:    '리워드',
@@ -793,11 +796,15 @@
           workKeyword: '',
           memo:        '',
         });
+        succeededSlots.push(result);
         success++;
       } catch {
         fail++;
       }
     }
+
+    // 엑셀 일괄접수 알림 (전체 완료 후 1회)
+    if (succeededSlots.length) HA.notifyExcelBatch(succeededSlots).catch(() => {});
 
     document.querySelector('#mode-excel .form-card').style.display = 'none';
     const doneEl = document.getElementById('excel-done');
