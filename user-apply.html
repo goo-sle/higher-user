@@ -692,8 +692,9 @@
           const url         = normalizeUrlForAdmin(r[1]);
           const mid         = String(r[2] || '').trim();
           const rankKeyword = String(r[3] || '').trim();
-          const days        = Number(r[4]) || 30;
-          const dailyTarget = Number(r[6]) || 0;
+          const days            = Number(r[4]) || 30;
+          const dailyTargetRaw  = String(r[6] ?? '').trim();
+          const dailyTarget     = dailyTargetRaw !== '' ? Number(dailyTargetRaw) : null;
           const startDate = normalizeDateCell(r[5]);
 
           const endD = new Date(startDate);
@@ -710,6 +711,7 @@
           if (!startDate) errors.push('시작일 형식 오류');
           else if (startDate < today_str) errors.push('오늘 이전 시작일');
           if (mid && urlMid && mid !== urlMid) errors.push('URL MID와 입력 MID 불일치');
+          if (dailyTarget === null || isNaN(dailyTarget)) errors.push('일 목표 누락');
 
           const valid = errors.length === 0;
           const error = errors.join(' / ');
@@ -738,7 +740,7 @@
         <td>${r.rankKeyword || '-'}</td>
         <td style="color:var(--text2)">${r.days}일</td>
         <td style="color:var(--text2)">${r.startDate}</td>
-        <td style="color:var(--text2)">${r.dailyTarget ? r.dailyTarget.toLocaleString() : '-'}</td>
+        <td style="color:var(--text2)">${r.dailyTarget !== null && r.dailyTarget !== undefined ? r.dailyTarget.toLocaleString() : '-'}</td>
         <td>${r.valid
           ? '<span class="row-status row-ok">정상</span>'
           : `<span class="row-status row-err">${r.error}</span>`}</td>
@@ -792,7 +794,7 @@
           startDate:   row.startDate,
           endDate:     row.endDate,
           days:        row.days,
-          dailyTarget: row.dailyTarget,
+          dailyTarget: row.dailyTarget ?? 0,
           workKeyword: '',
           memo:        '',
         });
