@@ -223,7 +223,7 @@
     .btn-apply-sm:hover { background: var(--accent2); }
 
     /* ── 정산 ── */
-    .settle-summary { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
+    .settle-summary { display:grid; grid-template-columns:repeat(6,1fr); gap:14px; margin-bottom:20px; }
     .settle-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:20px; position:relative; overflow:hidden; }
     .settle-card::after { content:''; position:absolute; bottom:0; left:0; right:0; height:3px; background:var(--accent); }
     .settle-card.warn::after { background:var(--warn); }
@@ -759,6 +759,7 @@
         <td style="${tdStyle('font-weight:600')}">${Math.round(groupTotal).toLocaleString()}<small style="color:var(--muted);font-weight:400"> 개</small></td>
         <td style="${tdStyle('color:var(--text2)')}">${unitPrice.toLocaleString()}<small style="color:var(--muted)"> 원</small></td>
         <td style="${tdStyle('font-weight:700;color:var(--accent)')}">${Math.round(groupAmount).toLocaleString()}<small style="color:var(--muted);font-weight:400"> 원</small></td>
+        <td style="${tdStyle('font-weight:700;color:#8b5cf6')}">${Math.round(groupAmount * 1.1).toLocaleString()}<small style="color:var(--muted);font-weight:400"> 원</small></td>
         <td style="${tdStyle()}">${paidLabel}</td>
       </tr>`;
     }).join('');
@@ -771,6 +772,7 @@
             <th style="${thStyle}">전체 목표</th>
             <th style="${thStyle}">단가</th>
             <th style="${thStyle}">정산 금액(VAT 별도)</th>
+            <th style="${thStyle}">입금액(VAT 포함)</th>
             <th style="${thStyle}">정산 상태</th>
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
@@ -793,6 +795,20 @@
           <div class="settle-card warn">
             <div class="settle-label">미정산 금액</div>
             <div class="settle-value" style="color:var(--warn)">${Math.round(unpaidAmount).toLocaleString()}<span class="settle-unit">원</span></div>
+          </div>
+          <div class="settle-card purple">
+            <div class="settle-label">${monthLabel} 입금액(VAT 포함)</div>
+            <div class="settle-value" style="color:#8b5cf6">${Math.round(monthAmount * 1.1).toLocaleString()}<span class="settle-unit">원</span></div>
+            <div style="font-size:11px;color:var(--text2);margin-top:6px">${monthSlots.length}건 합산</div>
+          </div>
+          <div class="settle-card navy">
+            <div class="settle-label">일 입금액(VAT 포함) (오늘)</div>
+            <div class="settle-value" style="color:var(--info)">${Math.round(todayAmount * 1.1).toLocaleString()}<span class="settle-unit">원</span></div>
+            <div style="font-size:11px;color:var(--text2);margin-top:6px">${todaySlots.length}건 합산</div>
+          </div>
+          <div class="settle-card warn">
+            <div class="settle-label">미정산 입금액(VAT 포함)</div>
+            <div class="settle-value" style="color:var(--warn)">${Math.round(unpaidAmount * 1.1).toLocaleString()}<span class="settle-unit">원</span></div>
           </div>
         </div>
       </div>
