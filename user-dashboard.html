@@ -630,7 +630,9 @@
 
     const now      = new Date();
     const todayStr = now.toISOString().slice(0,10);
-    const curMonth = now.getMonth() + 1;
+
+    // 당월 (예: 3월)
+    const curMonth = now.getMonth() + 1; // 1~12
     const curYear  = now.getFullYear();
     const monthLabel = `${curMonth}월`;
 
@@ -647,14 +649,55 @@
       s.userId === user.username && (s.status === 'active' || s.status === 'expired' || s.status === 'pending' || s.status === 'terminated' || s.status === 'rejected')
     );
 
-    // ── 금액 계산 (항상 실시간) ────────────────────────────────
-    function getSlotAmount(s) { return (s.dailyTarget||0) * (s.days||0) * unitPrice; }
-    function getSlotTarget(s) { return (s.dailyTarget||0) * (s.days||0); }
+    // ── 과거 날짜 스냅샷 로드 ─────────────────────────────────
+    const pastDates = [...new Set(
+      mySlots
+        .map(s => (s.createdAt||'').slice(0,10))
+        .filter(d => d && d < todayStr)
+    )];
 
+    const snapshotMap = {};
+    await Promise.all(pastDates.map(async date => {
+      const existingSnaps = await HA.getSettleSnapshots(date);
+      const daySlots = mySlots.filter(s => (s.createdAt||'').slice(0,10) === date);
+      const safe = s => s.replace(/[.#$[\]/]/g, '_');
+      const agencyId = daySlots[0]?.agencyId || '-';
+      const safeKey  = safe(agencyId) + '__' + safe(user.username);
+
+      if (!existingSnaps[safeKey]) {
+        const tot  = daySlots.reduce((a,s) => a+(s.dailyTarget||0)*(s.days||0), 0);
+        const amt  = daySlots.reduce((a,s) => a+(s.dailyTarget||0)*(s.days||0)*unitPrice, 0);
+        const paidA= daySlots.filter(s=>paidSet.has(s._key)).reduce((a,s)=>a+(s.dailyTarget||0)*(s.days||0)*unitPrice,0);
+        const snap = { slotCount:daySlots.length, totalTarget:tot, amount:amt, paidAmount:paidA, unitPrice, agencyId, userId:user.username };
+        await HA.saveSettleSnapshot(date, agencyId, user.username, snap);
+        existingSnaps[safeKey] = snap;
+      }
+      snapshotMap[date] = existingSnaps[safeKey];
+    }));
+
+    function getSlotAmount(s) {
+      const d = (s.createdAt||'').slice(0,10);
+      if (d < todayStr && snapshotMap[d]) {
+        const snap = snapshotMap[d];
+        return snap.slotCount > 0 ? snap.amount / snap.slotCount : 0;
+      }
+      return (s.dailyTarget||0) * (s.days||0) * unitPrice;
+    }
+    function getSlotTarget(s) {
+      const d = (s.createdAt||'').slice(0,10);
+      if (d < todayStr && snapshotMap[d]) {
+        const snap = snapshotMap[d];
+        return snap.slotCount > 0 ? snap.totalTarget / snap.slotCount : 0;
+      }
+      return (s.dailyTarget||0) * (s.days||0);
+    }
+
+    // ── 금액 계산 ──────────────────────────────────────────────
     const totalAmount  = mySlots.reduce((a,s) => a + getSlotAmount(s), 0);
     const paidAmount   = mySlots.filter(s => paidSet.has(s._key)).reduce((a,s) => a + getSlotAmount(s), 0);
     const unpaidAmount = totalAmount - paidAmount;
 
+    // 당월 정산금액 (접수일 기준 당월)
     const monthSlots = mySlots.filter(s => {
       const d = (s.createdAt||'').slice(0,10);
       if (!d) return false;
@@ -663,50 +706,68 @@
     });
     const monthAmount = monthSlots.reduce((a,s) => a + getSlotAmount(s), 0);
 
-    const todaySlots  = mySlots.filter(s => (s.createdAt||'').slice(0,10) === todayStr);
+    // 일 정산금액 (오늘 접수된 건만)
+    const todaySlots = mySlots.filter(s => (s.createdAt||'').slice(0,10) === todayStr);
     const todayAmount = todaySlots.reduce((a,s) => a + getSlotAmount(s), 0);
 
-    // ── 건건 리스트 (최신순) ──────────────────────────────────
-    const sortedSlots = [...mySlots].sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
-
-    function formatDateTime(isoStr) {
-      if (!isoStr) return '-';
+    // ── 분 단위 그룹핑 ────────────────────────────────────────
+    function getMinuteKey(isoStr) {
+      if (!isoStr) return 'unknown';
       const d = new Date(isoStr);
-      const date = isoStr.slice(0,10);
-      const hh = String(d.getHours()).padStart(2,'0');
-      const mm = String(d.getMinutes()).padStart(2,'0');
-      const ss = String(d.getSeconds()).padStart(2,'0');
-      return `${date}<br><span style="color:var(--accent);font-weight:700">${hh}:${mm}:${ss}</span>`;
+      const yyyy = d.getFullYear();
+      const mo   = String(d.getMonth()+1).padStart(2,'0');
+      const dd   = String(d.getDate()).padStart(2,'0');
+      const hh   = String(d.getHours()).padStart(2,'0');
+      const mn   = String(d.getMinutes()).padStart(2,'0');
+      return `${yyyy}-${mo}-${dd} ${hh}:${mn}`;
     }
+
+    // 분 단위 그룹 맵 생성 (최신순)
+    const groupMap = new Map();
+    const sortedSlots = [...mySlots].sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+    sortedSlots.forEach(s => {
+      const key = getMinuteKey(s.createdAt);
+      if (!groupMap.has(key)) groupMap.set(key, { key, slots: [] });
+      groupMap.get(key).slots.push(s);
+    });
 
     const thStyle = `background:var(--navy);color:#fff;padding:10px 12px;font-weight:500;text-align:center;white-space:nowrap;font-size:12px`;
 
-    const rowsHtml = sortedSlots.map(s => {
-      const isPaid  = paidSet.has(s._key);
-      const totTgt  = getSlotTarget(s);
-      const amount  = getSlotAmount(s);
+    // 그룹별 합산 1행씩 렌더
+    const groupsHtml = [...groupMap.entries()].map(([key, group]) => {
+      const groupTotal  = group.slots.reduce((a,s) => a + getSlotTarget(s), 0);
+      const groupAmount = group.slots.reduce((a,s) => a + getSlotAmount(s), 0);
+      const paidCount   = group.slots.filter(s => paidSet.has(s._key)).length;
+      const allPaid     = paidCount === group.slots.length;
+      const badge       = allPaid
+        ? '<span class="paid-badge">정산완료</span>'
+        : paidCount > 0
+          ? '<span style="background:rgba(245,158,11,.1);color:#b45309;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">일부완료</span>'
+          : '<span class="unpaid-badge">미정산</span>';
       return `<tr>
-        <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:center;font-size:12px;color:var(--text2)">${formatDateTime(s.createdAt)}</td>
-        <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:center;font-weight:600">${Math.round(totTgt).toLocaleString()}<small style="color:var(--muted);font-weight:400"> 개</small></td>
-        <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:center;color:var(--text2)">${unitPrice.toLocaleString()}<small style="color:var(--muted)"> 원</small></td>
-        <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:center;font-weight:700;color:var(--accent)">${Math.round(amount).toLocaleString()}<small style="color:var(--muted);font-weight:400"> 원</small></td>
-        <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:center">
-          ${isPaid ? '<span class="paid-badge">정산완료</span>' : '<span class="unpaid-badge">미정산</span>'}
+        <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:center;font-size:12px;color:var(--text2);font-weight:600">
+          ${key.slice(0,10)}<br><span style="color:var(--accent);font-size:13px;font-weight:700">${key.slice(11)}</span>
         </td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:center;color:var(--text2)">${group.slots.length}건</td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:center;font-weight:600">${Math.round(groupTotal).toLocaleString()}<small style="color:var(--muted);font-weight:400"> 개</small></td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:center;color:var(--text2)">${unitPrice.toLocaleString()}<small style="color:var(--muted)"> 원</small></td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:center;font-weight:700;color:var(--accent)">${Math.round(groupAmount).toLocaleString()}<small style="color:var(--muted);font-weight:400"> 원</small></td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--border);text-align:center">${badge}</td>
       </tr>`;
     }).join('');
 
-    const tableHtml = sortedSlots.length ? `
+    const tableHtml = groupMap.size ? `
       <div class="settle-tbl-wrap">
         <table>
           <thead><tr>
             <th style="${thStyle}">접수 시간</th>
+            <th style="${thStyle}">캠페인 수</th>
             <th style="${thStyle}">전체 목표</th>
             <th style="${thStyle}">단가</th>
             <th style="${thStyle}">정산 금액</th>
             <th style="${thStyle}">정산 상태</th>
           </tr></thead>
-          <tbody>${rowsHtml}</tbody>
+          <tbody>${groupsHtml}</tbody>
         </table>
       </div>` : `<div style="padding:60px;text-align:center;color:var(--muted)">정산 데이터가 없습니다.</div>`;
 
