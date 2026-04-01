@@ -767,7 +767,7 @@
       const agencyId = group.slots[0]?.agencyId || '-';
       const userId2  = group.slots[0]?.userId   || '-';
       const snapKey  = `${safe(key)}__${safe(agencyId)}__${safe(userId2)}`;
-      if (snapshots[snapKey]) continue; // 이미 저장된 건 스킵
+      if (snapshots[snapKey] && snapshots[snapKey].amount > 0) continue; // 정상 저장됨
 
       const tot    = group.slots.reduce((a,s) => a + getSlotTarget(s), 0);
       const amt    = group.slots.reduce((a,s) => a + getSlotAmount(s), 0);
@@ -778,7 +778,7 @@
         totalTarget: tot, amount: amt - refund, refund,
         unitPrice: getSlotPrice(group.slots[0]),
       };
-      await HA.saveSettleSnapshot(snapKey, snap, false);
+      await HA.saveSettleSnapshot(snapKey, snap, true); // force=true로 0원 스냅샷 덮어씀
       snapshots[snapKey] = snap;
     }
 
@@ -793,12 +793,12 @@
       const groupDate   = groupKey.slice(0,10);
       const snapKey     = `${safe(groupKey)}__${safe(agencyId)}__${safe(userId2)}`;
       const savedSnap   = snapshots[snapKey];
-
-      // 과거 날짜는 스냅샷, 오늘은 실시간
-      const groupTotal  = savedSnap ? savedSnap.totalTarget : group.slots.reduce((a,s) => a + getSlotTarget(s), 0);
-      const groupAmount = savedSnap ? savedSnap.amount      : group.slots.reduce((a,s) => a + getSlotAmount(s), 0);
-      const refund      = savedSnap ? (savedSnap.refund||0) : getGroupRefund(groupKey, agencyId, userId2);
-      const netAmount   = savedSnap ? groupAmount           : groupAmount - refund;
+      // amount>0인 스냅샷만 사용, 아니면 실시간 계산
+      const useSnap = savedSnap && savedSnap.amount > 0;
+      const groupTotal  = useSnap ? savedSnap.totalTarget : group.slots.reduce((a,s) => a + getSlotTarget(s), 0);
+      const groupAmount = useSnap ? savedSnap.amount      : group.slots.reduce((a,s) => a + getSlotAmount(s), 0);
+      const refund      = useSnap ? (savedSnap.refund||0) : getGroupRefund(groupKey, agencyId, userId2);
+      const netAmount   = useSnap ? groupAmount           : groupAmount - refund;
       const allPaid = group.slots.every(s => paidSet.has(s._key));
       const anyPaid = group.slots.some(s => paidSet.has(s._key));
       const paidLabel = allPaid
