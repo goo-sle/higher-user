@@ -654,7 +654,10 @@
     settleList.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">불러오는 중...</div>';
 
     const now      = new Date();
-    const todayStr = now.toISOString().slice(0,10);
+    const yyyy = now.getFullYear();
+    const mo = String(now.getMonth()+1).padStart(2,'0');
+    const dd = String(now.getDate()).padStart(2,'0');
+    const todayStr = `${yyyy}-${mo}-${dd}`;
 
     // 당월 (예: 3월)
     const curMonth = now.getMonth() + 1; // 1~12
@@ -707,15 +710,22 @@
 
     // 당월 정산 금액(VAT 별도) (접수일 기준 당월)
     const monthSlots = mySlots.filter(s => {
-      const d = (s.createdAt||'').slice(0,10);
-      if (!d) return false;
-      const dt = new Date(d);
-      return dt.getFullYear() === curYear && (dt.getMonth()+1) === curMonth;
+      if (!s.createdAt) return false;
+      const d = new Date(s.createdAt);
+      return d.getFullYear() === curYear && (d.getMonth()+1) === curMonth;
     });
     const monthAmount = monthSlots.reduce((a,s) => a + getSlotAmount(s), 0);
 
     // 일 정산 금액(VAT 별도) (오늘 접수된 건만)
-    const todaySlots = mySlots.filter(s => (s.createdAt||'').slice(0,10) === todayStr);
+    const todaySlots = mySlots.filter(s => {
+      if (!s.createdAt) return false;
+      const d = new Date(s.createdAt);
+      const yyyy2 = d.getFullYear();
+      const mo2 = String(d.getMonth()+1).padStart(2,'0');
+      const dd2 = String(d.getDate()).padStart(2,'0');
+      const sDate = `${yyyy2}-${mo2}-${dd2}`;
+      return sDate === todayStr;
+    });
     const todayAmount = todaySlots.reduce((a,s) => a + getSlotAmount(s), 0);
 
     // ── 접수 시간 단위로 그룹핑 ────────────────────────────────
@@ -731,7 +741,11 @@
     }
     function getDateLabel(isoStr) {
       if (!isoStr) return '-';
-      return isoStr.slice(0,10);
+      const d = new Date(isoStr);
+      const yyyy = d.getFullYear();
+      const mo = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      return `${yyyy}-${mo}-${dd}`;
     }
     function getGroupKey(isoStr) {
       // 접수 날짜 + 시:분 을 기준으로 그룹핑
