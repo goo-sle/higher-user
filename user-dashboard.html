@@ -706,7 +706,7 @@
 
     const totalAmount  = mySlots.reduce((a,s) => a + getSlotAmount(s), 0) - totalRefund;
     const paidAmount   = mySlots.filter(s => paidSet.has(s._key)).reduce((a,s) => a + getSlotAmount(s), 0) - totalRefund;
-    const unpaidAmount = mySlots.filter(s => !paidSet.has(s._key)).reduce((a,s) => a + getSlotAmount(s), 0) - totalRefund;
+    const unpaidAmount = mySlots.filter(s => !paidSet.has(s._key)).reduce((a,s) => a + getSlotAmount(s), 0); // 환불은 정산완료 그룹에 귀속되므로 미정산에서 차감 안 함
 
     // 당월 정산 금액(VAT 별도) (접수일 기준 당월)
     const monthSlots = mySlots.filter(s => {
