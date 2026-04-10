@@ -703,185 +703,34 @@
   // ── 정산 렌더 ─────────────────────────────────────────────
   let settlePage = 1;
   const SETTLE_PER_PAGE = 20;
+  let settleCache = null; // 로드된 데이터 캐시
 
-  window.renderSettle = async function(page) {
-    if (page !== undefined) settlePage = page;
-    else settlePage = 1;
-    const settleList = document.getElementById('settle-list');
-    if (!settleList) return;
-    settleList.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">불러오는 중...</div>';
+  // 정산 데이터 렌더 (캐시 기반, 페이지 이동 시 재fetch 없음)
+  function renderSettlePage() {
+    if (!settleCache) return;
+    const { allGroups, paidSet, snapshots, unitPriceFn, monthLabel, monthSlots, monthAmount,
+            todayAmount, todaySlotCount, unpaidAmount, unpaidCount, todayStr } = settleCache;
 
-    const now      = new Date();
-    const yyyy = now.getFullYear();
-    const mo = String(now.getMonth()+1).padStart(2,'0');
-    const dd = String(now.getDate()).padStart(2,'0');
-    const todayStr = `${yyyy}-${mo}-${dd}`;
-
-    // 당월 (예: 3월)
-    const curMonth = now.getMonth() + 1; // 1~12
-    const curYear  = now.getFullYear();
-    const monthLabel = `${curMonth}월`;
-
-    const [allSlots, allUsers, paidSet, refundMap] = await Promise.all([
-      HA.getSlots(),
-      HA.getUsers(),
-      HA.getPaidSet(),
-      HA.getRefunds().catch(() => ({})),
-    ]);
-
-    const myUser    = allUsers.find(u => u.username === user.username);
-    const unitPrice = myUser ? (myUser.unitPrice || 0) : 0;
-
-    const mySlots = allSlots.filter(s =>
-      s.userId === user.username && (s.status === 'active' || s.status === 'expired' || s.status === 'pending' || s.status === 'terminated' || s.status === 'rejected')
-    );
-
-    // 슬롯 저장 단가 우선, 없으면 현재 유저 단가 (기존 데이터 호환)
-    function getSlotPrice(s) {
-      return (s.unitPrice != null && s.unitPrice !== '' && s.unitPrice > 0) ? s.unitPrice : unitPrice;
-    }
-
-    function getSlotAmount(s) {
-      return (s.dailyTarget||0) * (s.days||0) * getSlotPrice(s);
-    }
-    function getSlotTarget(s) {
-      return (s.dailyTarget||0) * (s.days||0);
-    }
-
-    // 그룹 환불 조회 (정산관리와 동일한 refundKey 구조)
-    function safe(str) { return (str||'').replace(/[.#$[\]]/g, '_'); }
-    function getGroupRefund(timeKey, agencyId, userId) {
-      const key = `${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;
-      return (refundMap || {})[key] || 0;
-    }
-
-    // ── 금액 계산 ──────────────────────────────────────────────
-    // 전체 환불 합계 (유저 본인 관련 키만)
-    // 유저 본인 환불 합계만
-    const totalRefund = Object.entries(refundMap || {}).reduce((a, [k, v]) => {
-      return k.includes(`__${safe(user.username)}`) ? a + (v || 0) : a;
-    }, 0);
-
-    const totalAmount  = mySlots.reduce((a,s) => a + getSlotAmount(s), 0) - totalRefund;
-    const paidAmount   = mySlots.filter(s => paidSet.has(s._key)).reduce((a,s) => a + getSlotAmount(s), 0) - totalRefund;
-    const unpaidAmount = mySlots.filter(s => !paidSet.has(s._key)).reduce((a,s) => a + getSlotAmount(s), 0); // 환불은 정산완료 그룹에 귀속되므로 미정산에서 차감 안 함
-
-    // 당월 정산 금액(VAT 별도) (접수일 기준 당월)
-    const monthSlots = mySlots.filter(s => {
-      if (!s.createdAt) return false;
-      const d = new Date(s.createdAt);
-      return d.getFullYear() === curYear && (d.getMonth()+1) === curMonth;
-    });
-    const monthAmount = monthSlots.reduce((a,s) => a + getSlotAmount(s), 0);
-
-    // 일 정산 금액 — groupMap 빌드 후 계산 (하단 참조)
-
-    // ── 접수 시간 단위로 그룹핑 ────────────────────────────────
-    // createdAt (ISO string)을 분 단위로 그룹 (HH:MM 기준)
-    // 그룹 key = createdAt의 "YYYY-MM-DDTHH:MM" (초 제외)
-    function formatTime(isoStr) {
-      if (!isoStr) return '-';
-      const d = new Date(isoStr);
-      const hh = String(d.getHours()).padStart(2,'0');
-      const mm = String(d.getMinutes()).padStart(2,'0');
-      const ss = String(d.getSeconds()).padStart(2,'0');
-      return `${hh}:${mm}:${ss}`;
-    }
-    function getDateLabel(isoStr) {
-      if (!isoStr) return '-';
-      const d = new Date(isoStr);
-      const yyyy = d.getFullYear();
-      const mo = String(d.getMonth()+1).padStart(2,'0');
-      const dd = String(d.getDate()).padStart(2,'0');
-      return `${yyyy}-${mo}-${dd}`;
-    }
-    function getGroupKey(isoStr) {
-      // 접수 날짜 + 시:분 을 기준으로 그룹핑
-      if (!isoStr) return 'unknown';
-      const d = new Date(isoStr);
-      const yyyy = d.getFullYear();
-      const mo   = String(d.getMonth()+1).padStart(2,'0');
-      const dd   = String(d.getDate()).padStart(2,'0');
-      const hh   = String(d.getHours()).padStart(2,'0');
-      const mn   = String(d.getMinutes()).padStart(2,'0');
-      return `${yyyy}-${mo}-${dd} ${hh}:${mn}`;
-    }
-
-    // 그룹 맵 생성
-    const groupMap = new Map();
-    const sortedSlots = [...mySlots].sort((a,b) => {
-      const da = a.createdAt || '';
-      const db = b.createdAt || '';
-      return db.localeCompare(da);
-    });
-    sortedSlots.forEach(s => {
-      const key = getGroupKey(s.createdAt);
-      if (!groupMap.has(key)) groupMap.set(key, { key, slots: [] });
-      groupMap.get(key).slots.push(s);
-    });
-
-    // 일 정산 금액(VAT 별도) — 오늘 그룹 실시간, 환불 반영
-    let todayAmount = 0;
-    let todaySlotCount = 0;
-    for (const [key, group] of groupMap.entries()) {
-      if (key.slice(0,10) !== todayStr) continue;
-      const agencyId = group.slots[0]?.agencyId || '-';
-      const userId2  = group.slots[0]?.userId   || '-';
-      const groupAmount = group.slots.reduce((a,s) => a + getSlotAmount(s), 0);
-      const refund = getGroupRefund(key, agencyId, userId2);
-      todayAmount += groupAmount - refund;
-      todaySlotCount += group.slots.length;
-    }
-
-    // ── 과거 그룹 스냅샷 저장 (오늘 이전 날짜만) ──────────────
-    const snapshots = await HA.getAllSettleSnapshots().catch(() => ({}));
-
-    for (const [key, group] of groupMap.entries()) {
-      const groupDate = key.slice(0,10);
-      if (groupDate >= todayStr) continue; // 오늘은 실시간
-
-      const agencyId = group.slots[0]?.agencyId || '-';
-      const userId2  = group.slots[0]?.userId   || '-';
-      const snapKey  = `${safe(key)}__${safe(agencyId)}__${safe(userId2)}`;
-      if (snapshots[snapKey]) continue; // 이미 저장됨
-
-      const tot    = group.slots.reduce((a,s) => a + getSlotTarget(s), 0);
-      const amt    = group.slots.reduce((a,s) => a + getSlotAmount(s), 0);
-      const refund = getGroupRefund(key, agencyId, userId2);
-      const snap   = {
-        timeKey: key, agencyId, userId: userId2,
-        slotCount: group.slots.length,
-        totalTarget: tot, amount: amt - refund, refund,
-        unitPrice: getSlotPrice(group.slots[0]),
-      };
-      await HA.saveSettleSnapshot(snapKey, snap, false); // 최초 1회만 저장
-      snapshots[snapKey] = snap;
-    }
-
-    // 그룹별 HTML 생성
-    const thStyle = `background:var(--navy);color:#fff;padding:10px 12px;font-weight:500;text-align:center;white-space:nowrap;font-size:12px;border-right:1px solid #2d3f55`;
-    const tdStyle = (extra='') => `padding:10px 12px;border-bottom:1px solid var(--border);text-align:center;${extra}`;
-
-    const allGroups = [...groupMap.entries()];
     const settleTotal = allGroups.length;
-    const settleTotalPages = Math.ceil(settleTotal / SETTLE_PER_PAGE);
+    const settleTotalPages = Math.ceil(settleTotal / SETTLE_PER_PAGE) || 1;
     if (settlePage > settleTotalPages) settlePage = Math.max(1, settleTotalPages);
     const settleStart = (settlePage - 1) * SETTLE_PER_PAGE;
     const pageGroups = allGroups.slice(settleStart, settleStart + SETTLE_PER_PAGE);
+
+    const thStyle = `background:var(--navy);color:#fff;padding:10px 12px;font-weight:500;text-align:center;white-space:nowrap;font-size:12px;border-right:1px solid #2d3f55`;
+    const tdStyle = (extra='') => `padding:10px 12px;border-bottom:1px solid var(--border);text-align:center;${extra}`;
 
     const rowsHtml = pageGroups.map(([key, group]) => {
       const agencyId    = group.slots[0]?.agencyId || '-';
       const userId2     = group.slots[0]?.userId   || '-';
       const groupKey    = group.key;
       const groupDate   = groupKey.slice(0,10);
-      const snapKey     = `${safe(groupKey)}__${safe(agencyId)}__${safe(userId2)}`;
+      const snapKey     = `${unitPriceFn.safe(groupKey)}__${unitPriceFn.safe(agencyId)}__${unitPriceFn.safe(userId2)}`;
       const savedSnap   = snapshots[snapKey];
-      // 과거 날짜는 스냅샷, 오늘은 실시간
-      // 과거 날짜는 스냅샷, 오늘은 실시간
       const useSnap = groupDate < todayStr && savedSnap;
-      const groupTotal  = useSnap ? savedSnap.totalTarget : group.slots.reduce((a,s) => a + getSlotTarget(s), 0);
-      const groupAmount = useSnap ? savedSnap.amount      : group.slots.reduce((a,s) => a + getSlotAmount(s), 0);
-      const refund      = useSnap ? (savedSnap.refund||0) : getGroupRefund(groupKey, agencyId, userId2);
+      const groupTotal  = useSnap ? savedSnap.totalTarget : group.slots.reduce((a,s) => a + unitPriceFn.target(s), 0);
+      const groupAmount = useSnap ? savedSnap.amount      : group.slots.reduce((a,s) => a + unitPriceFn.amount(s), 0);
+      const refund      = useSnap ? (savedSnap.refund||0) : unitPriceFn.groupRefund(groupKey, agencyId, userId2);
       const netAmount   = useSnap ? groupAmount           : groupAmount - refund;
       const allPaid = group.slots.every(s => paidSet.has(s._key));
       const anyPaid = group.slots.some(s => paidSet.has(s._key));
@@ -891,8 +740,8 @@
           ? '<span class="unpaid-badge">일부정산</span>'
           : '<span class="unpaid-badge">미정산</span>';
       const firstSlot = group.slots[0];
-      const timeStr = formatTime(firstSlot.createdAt).slice(0,5); // HH:MM
-      const dateStr = getDateLabel(firstSlot.createdAt);
+      const timeStr = unitPriceFn.formatTime(firstSlot.createdAt).slice(0,5);
+      const dateStr = unitPriceFn.dateLabel(firstSlot.createdAt);
       const refundHtml = refund > 0
         ? `<br><span style="color:var(--danger);font-size:11px;font-weight:600">- ${refund.toLocaleString()}원</span>`
         : '';
@@ -901,7 +750,7 @@
           ${dateStr}<br><span style="color:var(--accent);font-size:13px;font-weight:700">${timeStr}</span>
         </td>
         <td style="${tdStyle('font-weight:600')}">${Math.round(groupTotal).toLocaleString()}<small style="color:var(--muted);font-weight:400"> 개</small></td>
-        <td style="${tdStyle('color:var(--text2)')}">${getSlotPrice(firstSlot).toLocaleString()}<small style="color:var(--muted)"> 원</small></td>
+        <td style="${tdStyle('color:var(--text2)')}">${unitPriceFn.price(firstSlot).toLocaleString()}<small style="color:var(--muted)"> 원</small></td>
         <td style="${tdStyle('font-weight:700;color:var(--accent)')}">${Math.round(netAmount).toLocaleString()}<small style="color:var(--muted);font-weight:400"> 원</small>${refundHtml}</td>
         <td style="${tdStyle('font-weight:700;color:#8b5cf6')}">${Math.round(netAmount * 1.1).toLocaleString()}<small style="color:var(--muted);font-weight:400"> 원</small></td>
         <td style="${tdStyle()}">${paidLabel}</td>
@@ -923,13 +772,13 @@
         </table>
       </div>` : '';
 
-    settleList.innerHTML = `
+    document.getElementById('settle-list').innerHTML = `
       <div style="padding:20px 20px 0">
         <div class="settle-summary">
           <div class="settle-card purple">
             <div class="settle-label">${monthLabel} 정산 금액(VAT 포함)</div>
             <div class="settle-value" style="color:#8b5cf6">${Math.round(monthAmount * 1.1).toLocaleString()}<span class="settle-unit">원</span></div>
-            <div style="font-size:11px;color:var(--text2);margin-top:6px">${monthSlots.length}건</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:6px">${monthSlots}건</div>
           </div>
           <div class="settle-card navy">
             <div class="settle-label">일 정산 금액(VAT 포함)</div>
@@ -939,7 +788,7 @@
           <div class="settle-card warn">
             <div class="settle-label">미정산 금액(VAT 포함)</div>
             <div class="settle-value" style="color:var(--warn)">${Math.round(unpaidAmount * 1.1).toLocaleString()}<span class="settle-unit">원</span></div>
-            <div style="font-size:11px;color:var(--text2);margin-top:6px">${mySlots.filter(s => !paidSet.has(s._key)).length}건</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:6px">${unpaidCount}건</div>
           </div>
         </div>
       </div>
@@ -947,7 +796,6 @@
         ${groupsHtml || `<div style="padding:60px;text-align:center;color:var(--muted)">정산 데이터가 없습니다.</div>`}
       </div>`;
 
-    // 정산 페이지네이션
     const pgEl = document.getElementById('settle-pagination');
     if (pgEl) {
       if (settleTotalPages <= 1) {
@@ -957,7 +805,6 @@
         let sp = Math.max(1, settlePage - Math.floor(maxBtns / 2));
         let ep = Math.min(settleTotalPages, sp + maxBtns - 1);
         if (ep - sp < maxBtns - 1) sp = Math.max(1, ep - maxBtns + 1);
-
         let btns = `<button class="pg-btn" onclick="renderSettle(${settlePage-1})" ${settlePage===1?'disabled':''}>‹</button>`;
         for (let p = sp; p <= ep; p++) {
           btns += `<button class="pg-btn${p===settlePage?' active':''}" onclick="renderSettle(${p})">${p}</button>`;
@@ -966,8 +813,140 @@
         pgEl.innerHTML = `<div class="pagination">${btns}</div>`;
       }
     }
-
     lucide.createIcons();
+  }
+
+  window.renderSettle = async function(page) {
+    if (page !== undefined) {
+      // 페이지 이동: 캐시된 데이터로 즉시 렌더
+      settlePage = page;
+      renderSettlePage();
+      return;
+    }
+    // 탭 진입 시 최초 로드
+    settlePage = 1;
+    settleCache = null;
+    const settleList = document.getElementById('settle-list');
+    if (!settleList) return;
+    settleList.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">불러오는 중...</div>';
+
+    const now      = new Date();
+    const yyyy = now.getFullYear();
+    const mo = String(now.getMonth()+1).padStart(2,'0');
+    const dd = String(now.getDate()).padStart(2,'0');
+    const todayStr = `${yyyy}-${mo}-${dd}`;
+
+    const curMonth = now.getMonth() + 1;
+    const curYear  = now.getFullYear();
+    const monthLabel = `${curMonth}월`;
+
+    const [allSlots, allUsers, paidSet, refundMap] = await Promise.all([
+      HA.getSlots(),
+      HA.getUsers(),
+      HA.getPaidSet(),
+      HA.getRefunds().catch(() => ({})),
+    ]);
+
+    const myUser    = allUsers.find(u => u.username === user.username);
+    const unitPrice = myUser ? (myUser.unitPrice || 0) : 0;
+
+    const mySlots = allSlots.filter(s =>
+      s.userId === user.username && (s.status === 'active' || s.status === 'expired' || s.status === 'pending' || s.status === 'terminated' || s.status === 'rejected')
+    );
+
+    function safe(str) { return (str||'').replace(/[.#$[\]]/g, '_'); }
+    function getSlotPrice(s) {
+      return (s.unitPrice != null && s.unitPrice !== '' && s.unitPrice > 0) ? s.unitPrice : unitPrice;
+    }
+    function getSlotAmount(s) { return (s.dailyTarget||0) * (s.days||0) * getSlotPrice(s); }
+    function getSlotTarget(s) { return (s.dailyTarget||0) * (s.days||0); }
+    function getGroupRefund(timeKey, agencyId, userId) {
+      const key = `${safe(timeKey)}__${safe(agencyId)}__${safe(userId)}`;
+      return (refundMap || {})[key] || 0;
+    }
+    function formatTime(isoStr) {
+      if (!isoStr) return '-';
+      const d = new Date(isoStr);
+      return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+    }
+    function getDateLabel(isoStr) {
+      if (!isoStr) return '-';
+      const d = new Date(isoStr);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+    function getGroupKey(isoStr) {
+      if (!isoStr) return 'unknown';
+      const d = new Date(isoStr);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    }
+
+    const totalRefund = Object.entries(refundMap || {}).reduce((a, [k, v]) => {
+      return k.includes(`__${safe(user.username)}`) ? a + (v || 0) : a;
+    }, 0);
+    const unpaidAmount = mySlots.filter(s => !paidSet.has(s._key)).reduce((a,s) => a + getSlotAmount(s), 0);
+    const unpaidCount  = mySlots.filter(s => !paidSet.has(s._key)).length;
+
+    const monthSlotArr = mySlots.filter(s => {
+      if (!s.createdAt) return false;
+      const d = new Date(s.createdAt);
+      return d.getFullYear() === curYear && (d.getMonth()+1) === curMonth;
+    });
+    const monthAmount = monthSlotArr.reduce((a,s) => a + getSlotAmount(s), 0);
+
+    const groupMap = new Map();
+    const sortedSlots = [...mySlots].sort((a,b) => (b.createdAt||'').localeCompare(a.createdAt||''));
+    sortedSlots.forEach(s => {
+      const key = getGroupKey(s.createdAt);
+      if (!groupMap.has(key)) groupMap.set(key, { key, slots: [] });
+      groupMap.get(key).slots.push(s);
+    });
+
+    let todayAmount = 0, todaySlotCount = 0;
+    for (const [key, group] of groupMap.entries()) {
+      if (key.slice(0,10) !== todayStr) continue;
+      const agencyId = group.slots[0]?.agencyId || '-';
+      const userId2  = group.slots[0]?.userId   || '-';
+      const groupAmount = group.slots.reduce((a,s) => a + getSlotAmount(s), 0);
+      todayAmount += groupAmount - getGroupRefund(key, agencyId, userId2);
+      todaySlotCount += group.slots.length;
+    }
+
+    const snapshots = await HA.getAllSettleSnapshots().catch(() => ({}));
+
+    for (const [key, group] of groupMap.entries()) {
+      const groupDate = key.slice(0,10);
+      if (groupDate >= todayStr) continue;
+      const agencyId = group.slots[0]?.agencyId || '-';
+      const userId2  = group.slots[0]?.userId   || '-';
+      const snapKey  = `${safe(key)}__${safe(agencyId)}__${safe(userId2)}`;
+      if (snapshots[snapKey]) continue;
+      const tot    = group.slots.reduce((a,s) => a + getSlotTarget(s), 0);
+      const amt    = group.slots.reduce((a,s) => a + getSlotAmount(s), 0);
+      const refund = getGroupRefund(key, agencyId, userId2);
+      const snap   = {
+        timeKey: key, agencyId, userId: userId2,
+        slotCount: group.slots.length,
+        totalTarget: tot, amount: amt - refund, refund,
+        unitPrice: getSlotPrice(group.slots[0]),
+      };
+      await HA.saveSettleSnapshot(snapKey, snap, false);
+      snapshots[snapKey] = snap;
+    }
+
+    // 데이터 캐시 저장
+    settleCache = {
+      allGroups: [...groupMap.entries()],
+      paidSet, snapshots, todayStr,
+      monthLabel, monthSlots: monthSlotArr.length, monthAmount,
+      todayAmount, todaySlotCount,
+      unpaidAmount, unpaidCount,
+      unitPriceFn: {
+        safe, price: getSlotPrice, amount: getSlotAmount, target: getSlotTarget,
+        groupRefund: getGroupRefund, formatTime, dateLabel: getDateLabel,
+      },
+    };
+
+    renderSettlePage();
   };
 
   // ── 프로필 정보 변경 모달 ────────────────────────────────────
