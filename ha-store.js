@@ -5,7 +5,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
 import { getDatabase, ref, set, get, push, update, remove }
   from "https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut }
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updatePassword }
   from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
 
 // ── Firebase 초기화 ──────────────────────────────────────────
@@ -249,7 +249,17 @@ const HA = {
   },
 
   async updateUser(key, patch) {
-    await update(ref(db, `${PATHS.users}/${key}`), patch);
+    if (patch.password) {
+      try {
+        await updatePassword(auth.currentUser, patch.password);
+      } catch (e) {
+        console.warn('Firebase Auth 비밀번호 업데이트 실패:', e);
+      }
+      const { password: _, ...rtdbPatch } = patch;
+      await update(ref(db, `${PATHS.users}/${key}`), rtdbPatch);
+    } else {
+      await update(ref(db, `${PATHS.users}/${key}`), patch);
+    }
     dispatch('ha:users:updated');
   },
 
