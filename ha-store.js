@@ -5,6 +5,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
 import { getDatabase, ref, set, get, push, update, remove }
   from "https://www.gstatic.com/firebasejs/10.10.0/firebase-database.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut }
+  from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
+
 // ── Firebase 초기화 ──────────────────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyAF-Rn7tzIjQeyUDJKnvKTRNccsXUVsIjo",
@@ -19,16 +22,10 @@ const firebaseConfig = {
 
 const app  = initializeApp(firebaseConfig);
 const db   = getDatabase(app);
+const auth = getAuth(app);
 
-// ── 텔레그램 알림 설정 ────────────────────────────────────────
-const TELEGRAM = {
-  token:   '8696324609:AAFo10CLRJiWdDahGtCqHfLKY16HsHZOnE8',
-  chatIds: [
-    '-1003641342076',   // 관리자1
-    // '여기에추가',   // 관리자2
-    // '여기에추가',   // 관리자3
-  ],
-};
+// ── Cloud Run 엔드포인트 ─────────────────────────────────────
+const CLOUD_RUN = 'https://higher-auto-g4lrwwqw4q-du.a.run.app';
 
 // ── DB 경로 상수 ─────────────────────────────────────────────
 const PATHS = {
@@ -42,19 +39,14 @@ const PATHS = {
 
 async function sendTelegram(message) {
   try {
-    await Promise.all(
-      TELEGRAM.chatIds.map(chatId =>
-        fetch(`https://api.telegram.org/bot${TELEGRAM.token}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: message,
-            parse_mode: 'HTML',
-          }),
-        })
-      )
-    );
+    const user = auth.currentUser;
+    if (!user) return;
+    const idToken = await user.getIdToken();
+    await fetch(`${CLOUD_RUN}/notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+      body: JSON.stringify({ message }),
+    });
   } catch (e) {
     console.warn('텔레그램 알림 실패:', e);
   }
@@ -82,29 +74,29 @@ const HA = {
 
   // ── 로그인 ────────────────────────────────────────────────
   async login(username, password) {
-    // 일반 회원 — Firebase에서 조회
+    const email = `${username}@higherad.app`;
     try {
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const uid  = cred.user.uid;
       const snapshot = await get(ref(db, PATHS.users));
-      const users = snapToArray(snapshot);
-      const found = users.find(u => u.username === username && u.password === password);
+      const users    = snapToArray(snapshot);
+      const found    = users.find(u => u.username === username);
       if (found) {
-        // 승인 대기 중인 계정 로그인 차단
-        if (found.approved === false) {
-          return { ok: false, reason: 'pending' };
-        }
-        const user = { ...found };
+        if (found.approved === false) return { ok: false, reason: 'pending' };
+        const user = { ...found, id: uid };
         sessionStorage.setItem('ha_current_user', JSON.stringify(user));
         return { ok: true, user };
       }
+      await signOut(auth);
       return { ok: false };
     } catch (e) {
-      console.error('login error', e);
       return { ok: false };
     }
   },
 
-  logout() {
+  async logout() {
     sessionStorage.removeItem('ha_current_user');
+    try { await signOut(auth); } catch (_) {}
   },
 
   // ════════════════════════════════════════════════════════
@@ -225,16 +217,31 @@ const HA = {
 
   async addUser(data) {
     const agencyName = data.agency || '';
+    const username   = data.username || '';
+    const password   = data.password || '';
+
+    // Firebase Auth 자가 회원가입
+    const email = `${username}@higherad.app`;
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+      await signOut(auth); // 가입 후 자동 로그인 방지 (관리자 승인 대기)
+    } catch (e) {
+      if (e.code === 'auth/email-already-in-use') {
+        throw new Error('이미 사용 중인 아이디입니다.');
+      }
+      throw e;
+    }
+
+    // RTDB 프로필 저장 (password 제외)
     const newUser = {
-      username:   data.username   || '',
-      password:   data.password   || '',
-      agency:     agencyName,       // 회원 테이블의 업체명
-      agencyId:   agencyName,       // 캠페인에서 참조하는 대행사 ID와 동일한 값
-      role:       'member',
-      unitPrice:  Number(data.unitPrice) || 0,
-      memo:       data.memo       || '',
-      createdAt:  new Date().toISOString().slice(0, 10),
-      approved:   data.approved !== undefined ? data.approved : false,
+      username,
+      agency:    agencyName,
+      agencyId:  agencyName,
+      role:      'member',
+      unitPrice: Number(data.unitPrice) || 0,
+      memo:      data.memo || '',
+      createdAt: new Date().toISOString().slice(0, 10),
+      approved:  data.approved !== undefined ? data.approved : false,
     };
     const newRef = await push(ref(db, PATHS.users), newUser);
     dispatch('ha:users:updated');
