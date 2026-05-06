@@ -837,7 +837,7 @@
         userId:        targetUserId,
         slotType:      '리워드',
         storeName:     document.getElementById('f-storeName').value,
-        rankKeyword:   document.getElementById('f-rankKeyword').value,
+        rankKeyword:   document.getElementById('f-rankKeyword').value.replace(/\s+/g, ''),
         url:           normalizedUrl,
         mid:           document.getElementById('f-mid').value,
         workKeyword:   document.getElementById('f-workKeyword').value,
@@ -910,7 +910,7 @@
           const storeName   = String(r[0] || '').trim();
           const url         = normalizeUrlForAdmin(r[1]) || null;
           const mid         = String(r[2] ?? '').trim();
-          const rankKeyword = String(r[3] ?? '').trim();
+          const rankKeyword = String(r[3] ?? '').trim().replace(/\s+/g, '');
           const daysRaw         = String(r[4] ?? '').trim();
           const days            = daysRaw !== '' ? Number(daysRaw) : null;
           const dailyTargetRaw  = String(r[6] ?? '').trim();
