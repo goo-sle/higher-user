@@ -147,6 +147,11 @@ const HA = {
     return result;
   },
 
+  async updateSlot(key, patch) {
+    await update(ref(db, `${PATHS.slots}/${key}`), patch);
+    dispatch('ha:slots:updated');
+  },
+
   // ── 개별접수 텔레그램 알림 ───────────────────────────────
   async notifySingle(slot) {
     const now = new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
