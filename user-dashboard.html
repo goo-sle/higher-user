@@ -1074,26 +1074,20 @@
         <div class="edit-2col">
           <div class="profile-field">
             <label>플레이스명</label>
-            <input id="se-storeName" value="${(s.storeName||'').replace(/"/g,'&quot;')}">
+            <input readonly style="background:#f8fafc;color:var(--text2);cursor:default;" value="${(s.storeName||'').replace(/"/g,'&quot;')}">
           </div>
           <div class="profile-field">
             <label>MID</label>
-            <input id="se-mid" value="${(s.mid||'').replace(/"/g,'&quot;')}">
+            <input readonly style="background:#f8fafc;color:var(--text2);cursor:default;" value="${(s.mid||'').replace(/"/g,'&quot;')}">
           </div>
         </div>
         <div class="profile-field">
           <label>URL</label>
-          <input id="se-url" value="${(s.url||'').replace(/"/g,'&quot;')}">
+          <input readonly style="background:#f8fafc;color:var(--text2);cursor:default;" value="${(s.url||'').replace(/"/g,'&quot;')}">
         </div>
-        <div class="edit-2col">
-          <div class="profile-field">
-            <label>순위키워드</label>
-            <input id="se-rankKeyword" value="${(s.rankKeyword||'').replace(/"/g,'&quot;')}">
-          </div>
-          <div class="profile-field">
-            <label>작업키워드</label>
-            <input id="se-workKeyword" value="${(s.workKeyword||'').replace(/"/g,'&quot;')}">
-          </div>
+        <div class="profile-field">
+          <label>순위키워드</label>
+          <input readonly style="background:#f8fafc;color:var(--text2);cursor:default;" value="${(s.rankKeyword||'').replace(/"/g,'&quot;')}">
         </div>
         <div class="edit-2col">
           <div class="profile-field">
@@ -1147,11 +1141,6 @@
     msgEl.className = 'profile-msg';
     msgEl.textContent = '';
 
-    const storeName   = document.getElementById('se-storeName').value.trim();
-    const mid         = document.getElementById('se-mid').value.trim();
-    const url         = document.getElementById('se-url').value.trim();
-    const rankKeyword = document.getElementById('se-rankKeyword').value.trim();
-    const workKeyword = document.getElementById('se-workKeyword').value.trim();
     const startDate   = document.getElementById('se-startDate').value;
     const days        = Number(document.getElementById('se-days').value);
     const endDate     = document.getElementById('se-endDate').value;
@@ -1168,7 +1157,6 @@
     saveBtn.textContent = '저장 중...';
     try {
       await HA.updateSlot(_editSlotKey, {
-        storeName, mid, url, rankKeyword, workKeyword,
         startDate, endDate, days, dailyTarget, memo,
       });
       msgEl.textContent = '✓ 수정되었습니다.';
