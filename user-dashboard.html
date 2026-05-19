@@ -163,6 +163,7 @@
 
     .status-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 10px; }
     .s-pending  { background: rgba(245,158,11,.1); color: #b45309; }
+    .s-accepted { background: rgba(99,102,241,.1);  color: #4338ca; }
     .s-active   { background: rgba(16,185,129,.1);  color: #059669; }
     .s-rejected { background: rgba(239,68,68,.1);   color: #dc2626; }
     .s-expired  { background: #f1f5f9; color: var(--text2); }
@@ -401,6 +402,7 @@
         <option value="">전체 상태</option>
         <option value="active">진행중</option>
         <option value="pending">승인대기</option>
+        <option value="accepted">접수</option>
         <option value="expired">만료</option>
       </select>
       <select id="f-range" onchange="renderMySlots()">
@@ -478,6 +480,7 @@
   // ── 상태 배지 ────────────────────────────────────────────────
   const statusBadge = {
     pending:    '<span class="status-badge s-pending">승인대기</span>',
+    accepted:   '<span class="status-badge s-accepted">접수</span>',
     active:     '<span class="status-badge s-active">진행중</span>',
     rejected:   '<span class="status-badge s-rejected">반려</span>',
     expired:    '<span class="status-badge s-expired">만료</span>',
