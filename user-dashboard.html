@@ -1106,7 +1106,7 @@
           </div>
           <div class="profile-field">
             <label>일 목표</label>
-            <input id="se-dailyTarget" type="number" min="1" value="${s.dailyTarget||''}">
+            <input id="se-dailyTarget" type="number" min="10" value="${s.dailyTarget||''}">
           </div>
         </div>
         <div class="profile-field">
@@ -1148,7 +1148,7 @@
 
     if (!startDate)              { msgEl.textContent = '시작일을 선택해주세요.';      msgEl.className = 'profile-msg error'; return; }
     if (!days || days < 1)       { msgEl.textContent = '일 수를 입력해주세요.';       msgEl.className = 'profile-msg error'; return; }
-    if (!dailyTarget || dailyTarget < 1) { msgEl.textContent = '일 목표를 입력해주세요.'; msgEl.className = 'profile-msg error'; return; }
+    if (!dailyTarget || dailyTarget < 10) { msgEl.textContent = '일 목표는 10 이상 입력해주세요.'; msgEl.className = 'profile-msg error'; return; }
 
     saveBtn.disabled = true;
     saveBtn.textContent = '저장 중...';
