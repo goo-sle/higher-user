@@ -1147,8 +1147,6 @@
     const dailyTarget = Number(document.getElementById('se-dailyTarget').value);
     const memo        = document.getElementById('se-memo').value.trim();
 
-    if (!storeName)              { msgEl.textContent = '플레이스명을 입력해주세요.';  msgEl.className = 'profile-msg error'; return; }
-    if (!mid)                    { msgEl.textContent = 'MID를 입력해주세요.';        msgEl.className = 'profile-msg error'; return; }
     if (!startDate)              { msgEl.textContent = '시작일을 선택해주세요.';      msgEl.className = 'profile-msg error'; return; }
     if (!days || days < 1)       { msgEl.textContent = '일 수를 입력해주세요.';       msgEl.className = 'profile-msg error'; return; }
     if (!dailyTarget || dailyTarget < 1) { msgEl.textContent = '일 목표를 입력해주세요.'; msgEl.className = 'profile-msg error'; return; }
