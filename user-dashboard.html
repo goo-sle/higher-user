@@ -1092,7 +1092,7 @@
         <div class="edit-2col">
           <div class="profile-field">
             <label>시작일</label>
-            <input id="se-startDate" type="date" value="${s.startDate||''}" oninput="calcEditEndDate()">
+            <input id="se-startDate" type="date" value="${s.startDate||''}" min="${new Date().toISOString().slice(0,10)}" oninput="calcEditEndDate()">
           </div>
           <div class="profile-field">
             <label>일 수</label>
